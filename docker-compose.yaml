@@ -2,7 +2,7 @@
 
 x-airflow-common:
   &airflow-common
-  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.10.4}
+  build: .
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: $AIRFLOW__CORE__EXECUTOR
@@ -65,19 +65,19 @@ services:
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
 
   # container for the dbt Python scripts
-  dbt-container:
-    image: python:3.11-slim
-    build:
-      context: ./dbt/
-      dockerfile: Dockerfile
-    environment:
-      DB_TYPE: $DBT_DB_TYPE
-      DB_PORT: $DBT_DB_PORT
-      DB_HOST: $DBT_DB_HOST
-      DB_USER: $DBT_DB_USER
-      DB_PASSWORD: $DBT_DB_PASSWORD
-      DB_NAME: $DBT_DB_NAME
-      DB_SCHEMA: $DBT_DB_SCHEMA
+  # dbt-container:
+  #   image: python:3.11-slim
+  #   build:
+  #     context: ./dbt/
+  #     dockerfile: Dockerfile
+  #   environment:
+  #     DB_TYPE: $DBT_DB_TYPE
+  #     DB_PORT: $DBT_DB_PORT
+  #     DB_HOST: $DBT_DB_HOST
+  #     DB_USER: $DBT_DB_USER
+  #     DB_PASSWORD: $DBT_DB_PASSWORD
+  #     DB_NAME: $DBT_DB_NAME
+  #     DB_SCHEMA: $DBT_DB_SCHEMA
 
   redis:
     # Redis is limited to 7.2-bookworm due to licencing change
