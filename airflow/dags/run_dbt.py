@@ -20,7 +20,7 @@ with DAGTemplate.create_base_dag(
     dag_id='dbt_daily',
     description='Daily run of full dbt workflow (no imports)',
     schedule_interval='0 2 * * *',
-    start_date=datetime(year=2025, month=2, day=5, hour=23),
+    start_date=datetime(year=2024, month=12, day=3, hour=23),
     tags=['dbt']
 ) as dag:
 

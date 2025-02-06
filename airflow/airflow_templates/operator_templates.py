@@ -37,7 +37,7 @@ class OperatorTemplate:
         return DockerOperator(
             task_id=task_id,
             user=f'dbt:{group}',
-            image='dbt-image',
+            image='dbt-runner-image',
             container_name='dbt-container-{}'.format(task_id),
             api_version='auto',
             auto_remove=True,
@@ -70,7 +70,7 @@ class OperatorTemplate:
         return DockerOperator(
             task_id=task_id,
             user='airflow',
-            image='python-script-image',
+            image='python-runner-image',
             container_name='python-script-container-{}'.format(task_id),
             api_version='auto',
             auto_remove=True,
