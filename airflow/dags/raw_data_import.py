@@ -12,12 +12,7 @@ with DAGTemplate.create_base_dag(
     tags=['data_import']
 ) as dag:
 
-    t1 = BashOperator(
-        task_id='print_hello',
-        bash_command='echo "Hello from test DAG"'
-    )
-
-    t2 = OperatorTemplate.create_python_script_docker_operator(
+    t1 = OperatorTemplate.create_python_script_docker_operator(
         task_id='data_import_example',
-        command="""python3 -c 'print("hello world")'"""
+        command="""python3 data_import_example.py"""
     )

@@ -2,6 +2,7 @@
 airflow/dags/__pycache__
 dbt/config/profiles.yml
 airflow/logs/*
+notebooks/
 
 dbt/target/
 dbt/dbt_packages/

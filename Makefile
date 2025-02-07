@@ -13,3 +13,6 @@ recreate_all:
 	docker compose build --progress=plain --no-cache
 	docker compose up -d
 
+restart_all:
+	docker compose down
+	docker compose up -d
