@@ -12,9 +12,13 @@ class OperatorTemplate:
     @staticmethod
     def create_dbt_docker_operator(main_dbt_command, task_id, additional_env_vars=None):
         env_vars = {
-            key: val for key, val in dict(os.environ).items() if any([
-                key.startswith('DBT_'),
-            ])
+            'DB_TYPE': os.environ.get('DB_TYPE'),
+            'DB_PORT': os.environ.get('DB_PORT'),
+            'DB_HOST': os.environ.get('DB_HOST'),
+            'DB_USER': os.environ.get('DB_USER'),
+            'DB_PASSWORD': os.environ.get('DB_PASSWORD'),
+            'DB_NAME': os.environ.get('DB_NAME'),
+            'DB_SCHEMA': os.environ.get('DB_SCHEMA')
         }
 
         all_env_vars_passed_to_container = env_vars | (additional_env_vars if additional_env_vars else {})
@@ -53,7 +57,7 @@ class OperatorTemplate:
                 )
             ],
             docker_url="unix://var/run/docker.sock",
-            network_mode="host",
+            network_mode="airflow-dbt-network",
             tty=True,
         )
 
@@ -61,8 +65,13 @@ class OperatorTemplate:
     @staticmethod
     def create_python_script_docker_operator(task_id, command, additional_env_vars=None):
         env_vars = {
-            key: val for key, val in dict(os.environ).items() if any([
-            ])
+            'DB_TYPE': os.environ.get('DB_TYPE'),
+            'DB_PORT': os.environ.get('DB_PORT'),
+            'DB_HOST': os.environ.get('DB_HOST'),
+            'DB_USER': os.environ.get('DB_USER'),
+            'DB_PASSWORD': os.environ.get('DB_PASSWORD'),
+            'DB_NAME': os.environ.get('DB_NAME'),
+            'DB_SCHEMA': os.environ.get('DB_SCHEMA')
         }
 
         all_env_vars_passed_to_container = env_vars | (additional_env_vars if additional_env_vars else {})
@@ -79,6 +88,6 @@ class OperatorTemplate:
             command=command,
             mount_tmp_dir=False,
             docker_url="unix://var/run/docker.sock",
-            network_mode="host",
+            network_mode="airflow-dbt-network",
             tty=True
         )

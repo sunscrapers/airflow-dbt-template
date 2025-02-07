@@ -14,6 +14,13 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: $AIRFLOW__CORE__LOAD_EXAMPLES
     AIRFLOW__API__AUTH_BACKENDS: $AIRFLOW__API__AUTH_BACKENDS
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: $AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK
+    DB_TYPE: $DBT_DB_TYPE
+    DB_PORT: $DBT_DB_PORT
+    DB_HOST: $DBT_DB_HOST
+    DB_USER: $DBT_DB_USER
+    DB_PASSWORD: $DBT_DB_PASSWORD
+    DB_NAME: $DBT_DB_NAME
+    DB_SCHEMA: $DBT_DB_SCHEMA
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
@@ -50,6 +57,10 @@ services:
     image: postgres:13
     ports:
       - "5435:5432"
+    networks:
+      default:
+        aliases:
+          - postgres-dbt
     environment:
       POSTGRES_USER: $DBT_POSTGRES_USER
       POSTGRES_PASSWORD: $DBT_POSTGRES_PASSWORD
@@ -71,21 +82,21 @@ services:
       context: ./python_scripts/
       dockerfile: Dockerfile
     image: python-runner-image
+    networks:
+      - default
+    depends_on:
+      - postgres-dbt
 
   # container for the dbt Python scripts
   dbt-container:
     build:
       context: ./dbt/
       dockerfile: Dockerfile
-    environment:
-      DB_TYPE: $DBT_DB_TYPE
-      DB_PORT: $DBT_DB_PORT
-      DB_HOST: $DBT_DB_HOST
-      DB_USER: $DBT_DB_USER
-      DB_PASSWORD: $DBT_DB_PASSWORD
-      DB_NAME: $DBT_DB_NAME
-      DB_SCHEMA: $DBT_DB_SCHEMA
     image: dbt-runner-image
+    networks:
+      - default
+    depends_on:
+      - postgres-dbt
 
   redis:
     # Redis is limited to 7.2-bookworm due to licencing change
@@ -272,3 +283,7 @@ services:
 
 volumes:
   postgres-db-volume:
+
+networks:
+  default:
+    name: airflow-dbt-network

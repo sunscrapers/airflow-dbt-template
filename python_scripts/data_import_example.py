@@ -1,7 +1,8 @@
-print('Hello world from the Python script!!!')
-
 import requests
 import pandas as pd
+print('Hello world from the Python script!!!')
+import postgres_utils
+import os
 
 # Make the API request
 url = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/DEMO_R_D3DENS?lang=EN&time=2022"
@@ -31,3 +32,24 @@ label_df = pd.DataFrame(response_json['dimension']['geo']['category']['label'].i
 print(label_df.head())
 
 print('Data pulled successfully!')
+
+# Print all environment variables
+print("All environment variables:")
+print(dict(os.environ))
+
+# Create a data table in PostgreSQL
+postgres_utils.write_df_to_postgres(
+    table_name='raw.eurostat_id_value',
+    df=id_value_df)
+
+postgres_utils.write_df_to_postgres(
+    table_name='raw.eurostat_id_status',
+    df=status_df)
+
+postgres_utils.write_df_to_postgres(
+    table_name='raw.eurostat_id_code',
+    df=code_df)
+
+postgres_utils.write_df_to_postgres(
+    table_name='raw.eurostat_code_label',
+    df=label_df)
