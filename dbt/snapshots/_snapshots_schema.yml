@@ -1,0 +1,7 @@
+version: 2
+
+snapshots:
+  - name: eurostat_d3dens_id_code_snapshot
+    description: 'Snapshot of the mapping of IDs to codes. In case any of the region codes changes over time'
+  - name: eurostat_d3dens_code_label_snapshot
+    description: 'Snapshot of the mapping of codes to lables. In case any of the region names changes over time'

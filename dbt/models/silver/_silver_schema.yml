@@ -1,0 +1,27 @@
+
+version: 2
+
+models:
+  - name: eurostat_nuts3_population_density
+    description: 'Population density data for NUTS3 regions based ont the Eurostat dataset'
+    columns:
+      - name: 'id'
+        description: 'Region ID'
+        tests:
+          - unique
+      - name: 'code'
+        description: 'Region code'
+        tests:
+          - not_null
+      - name: 'label'
+        description: 'Region label'
+        tests:
+          - not_null
+      - name: 'status'
+        description: 'Data status'
+        tests:
+          - not_null
+      - name: 'value'
+        description: 'Population density value (inhabitants per km2)'
+        tests:
+          - not_null

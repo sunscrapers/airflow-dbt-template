@@ -39,17 +39,17 @@ print(dict(os.environ))
 
 # Create a data table in PostgreSQL
 postgres_utils.write_df_to_postgres(
-    table_name='raw.eurostat_id_value',
+    table_name='raw.eurostat_d3dens_id_value',
     df=id_value_df)
 
 postgres_utils.write_df_to_postgres(
-    table_name='raw.eurostat_id_status',
+    table_name='raw.eurostat_d3dens_id_status',
     df=status_df)
 
 postgres_utils.write_df_to_postgres(
-    table_name='raw.eurostat_id_code',
+    table_name='raw.eurostat_d3dens_id_code',
     df=code_df)
 
 postgres_utils.write_df_to_postgres(
-    table_name='raw.eurostat_code_label',
+    table_name='raw.eurostat_d3dens_code_label',
     df=label_df)

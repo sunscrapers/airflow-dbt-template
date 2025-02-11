@@ -21,12 +21,16 @@ x-airflow-common:
     DB_PASSWORD: $DBT_DB_PASSWORD
     DB_NAME: $DBT_DB_NAME
     DB_SCHEMA: $DBT_DB_SCHEMA
+    DBT_LOGS_HOST_PATH: $DBT_LOGS_HOST_PATH
+    DBT_ENV: $DBT_ENV
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - /var/run/docker.sock:/var/run/docker.sock
+    - dbt-logs-volume:/opt/airflow/dbt/logs
+    - dbt-target-volume:/opt/airflow/dbt/target
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -72,7 +76,7 @@ services:
       retries: 5
       start_period: 80s
     volumes:
-      # - dbtpostgres:/var/lib/postgresql/data
+      - postgres-dbt-data:/var/lib/postgresql/data
       - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
 
@@ -93,6 +97,9 @@ services:
       context: ./dbt/
       dockerfile: Dockerfile
     image: dbt-runner-image
+    volumes:
+      - dbt-logs-volume:/opt/dbt/logs
+      - dbt-target-volume:/opt/dbt/target
     networks:
       - default
     depends_on:
@@ -282,7 +289,14 @@ services:
         condition: service_completed_successfully
 
 volumes:
+  postgres-dbt-data:
+    name: postgres-dbt-data
+  dbt-logs-volume:
+    name: dbt-logs-volume
+  dbt-target-volume:
+    name: dbt-target-volume
   postgres-db-volume:
+    name: postgres-db-volume
 
 networks:
   default:

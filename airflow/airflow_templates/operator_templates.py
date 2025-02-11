@@ -24,9 +24,15 @@ class OperatorTemplate:
         all_env_vars_passed_to_container = env_vars | (additional_env_vars if additional_env_vars else {})
 
         dbt_target = os.getenv('DBT_ENV')
+        # Use default path if not set
         dbt_logs_host_path = os.getenv('DBT_LOGS_HOST_PATH')
+        
+        # Convert to absolute path and ensure directory exists
+        dbt_logs_host_path = os.path.abspath(dbt_logs_host_path)
+        os.makedirs(dbt_logs_host_path, exist_ok=True)
+        
         dbt_main_dir = '/opt/dbt/'
-        profiles_dir = '/opt/dbt/config/'
+        profiles_dir = '/opt/dbt/'
         suffix = f'--target={dbt_target} --profiles-dir={profiles_dir}'
 
         full_dbt_command = "{main_cmd} {suffix} ".format(
@@ -51,9 +57,14 @@ class OperatorTemplate:
             mount_tmp_dir=False,
             mounts=[
                 Mount(
-                    source=dbt_logs_host_path,
+                    source='dbt-logs-volume',
                     target='/opt/dbt/logs',
-                    type='bind'
+                    type='volume'
+                ),
+                Mount(
+                    source='dbt-target-volume', 
+                    target='/opt/dbt/target',
+                    type='volume'
                 )
             ],
             docker_url="unix://var/run/docker.sock",

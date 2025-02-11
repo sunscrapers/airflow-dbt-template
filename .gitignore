@@ -1,6 +1,6 @@
 *.env
 airflow/dags/__pycache__
-dbt/config/profiles.yml
+dbt/profiles.yml
 airflow/logs/*
 notebooks/
 
