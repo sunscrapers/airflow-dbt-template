@@ -6,8 +6,8 @@ from operator_templates import OperatorTemplate
 
 with DAGTemplate.create_base_dag(
     dag_id='data_import_example',
-    description='Example of data import from XXX',
-    schedule_interval='0 4 * * *',
+    description='Example of data import from Eurostat API',
+    schedule_interval='0 2 * * *',
     start_date=datetime(year=2024, month=12, day=3, hour=23),
     tags=['data_import']
 ) as dag:

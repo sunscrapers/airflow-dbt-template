@@ -26,10 +26,11 @@ class DAGTemplate:
         if app_env in ('dev', 'test'):
             start_date = datetime.datetime.now()
 
+        support_email = os.environ.get('AIRFLOW__SUPPORT_EMAIL')
         default_args = {
             'owner': 'airflow',
             'depends_on_past': False,
-            'email': ['m.puchala@sunscrapers.com'],
+            'email': [support_email],
             'email_on_failure': False,
             'email_on_retry': False,
             'retries': retries
