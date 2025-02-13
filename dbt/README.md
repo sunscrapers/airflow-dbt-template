@@ -13,5 +13,6 @@ This is where the dbt project is defined and set up.
 - `dbt_project.yml`: The main configuration file for dbt. It defines folder paths, naming conventions, profiles, and other project-wide settings.
 - `Dockerfile`: File that is used to set up the dedicated dbt container for our DAG DockerOperator. Creates the environment in which dbt runs.
 - `packages.yml`: Defines the dbt packages we want to have installed. We've got dbt-utils there that we'll use for testing our models.
+- `postgresql.conf`: Config file for the dbt database in PostgreSQL.
 - `profiles.yml-template`: Template file that you should fill in and rename to `profiles.yml` before running your project.
 - `requirements.txt`: File with required Python packages that we'll need in our Docker environment

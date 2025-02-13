@@ -14,8 +14,9 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: $AIRFLOW__CORE__LOAD_EXAMPLES
     AIRFLOW__API__AUTH_BACKENDS: $AIRFLOW__API__AUTH_BACKENDS
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: $AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK
+    AIRFLOW__SUPPORT_EMAIL: $AIRFLOW__SUPPORT_EMAIL
     DB_TYPE: $DBT_DB_TYPE
-    DB_PORT: $DBT_DB_PORT
+    DB_PORT: $DBT_DB_PORT_IN
     DB_HOST: $DBT_DB_HOST
     DB_USER: $DBT_DB_USER
     DB_PASSWORD: $DBT_DB_PASSWORD
@@ -60,7 +61,7 @@ services:
   postgres-dbt:
     image: postgres:13
     ports:
-      - "5435:5432"
+      - "$DBT_DB_PORT_OUT:$DBT_DB_PORT_IN"
     networks:
       default:
         aliases:
@@ -77,8 +78,8 @@ services:
       start_period: 80s
     volumes:
       - postgres-dbt-data:/var/lib/postgresql/data
-      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
-    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+      - ./dbt/postgresql.conf:/etc/dbt/postgresql.conf
+    command: ["postgres", "-c", "config_file=/etc/dbt/postgresql.conf"]
 
     # container for the Python scripts
   python-script-runner:
