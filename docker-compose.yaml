@@ -2,7 +2,7 @@
 
 x-airflow-common:
   &airflow-common
-  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.10.4}
+  build: .
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: $AIRFLOW__CORE__EXECUTOR
@@ -14,11 +14,24 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: $AIRFLOW__CORE__LOAD_EXAMPLES
     AIRFLOW__API__AUTH_BACKENDS: $AIRFLOW__API__AUTH_BACKENDS
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: $AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK
+    AIRFLOW__SUPPORT_EMAIL: $AIRFLOW__SUPPORT_EMAIL
+    DB_TYPE: $DBT_DB_TYPE
+    DB_PORT: $DBT_DB_PORT_IN
+    DB_HOST: $DBT_DB_HOST
+    DB_USER: $DBT_DB_USER
+    DB_PASSWORD: $DBT_DB_PASSWORD
+    DB_NAME: $DBT_DB_NAME
+    DB_SCHEMA: $DBT_DB_SCHEMA
+    DBT_LOGS_HOST_PATH: $DBT_LOGS_HOST_PATH
+    DBT_ENV: $DBT_ENV
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    - /var/run/docker.sock:/var/run/docker.sock
+    - dbt-logs-volume:/opt/airflow/dbt/logs
+    - dbt-target-volume:/opt/airflow/dbt/target
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -48,7 +61,11 @@ services:
   postgres-dbt:
     image: postgres:13
     ports:
-      - "5435:5432"
+      - "$DBT_DB_PORT_OUT:$DBT_DB_PORT_IN"
+    networks:
+      default:
+        aliases:
+          - postgres-dbt
     environment:
       POSTGRES_USER: $DBT_POSTGRES_USER
       POSTGRES_PASSWORD: $DBT_POSTGRES_PASSWORD
@@ -60,24 +77,34 @@ services:
       retries: 5
       start_period: 80s
     volumes:
-      # - dbtpostgres:/var/lib/postgresql/data
-      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
-    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+      - postgres-dbt-data:/var/lib/postgresql/data
+      - ./dbt/postgresql.conf:/etc/dbt/postgresql.conf
+    command: ["postgres", "-c", "config_file=/etc/dbt/postgresql.conf"]
+
+    # container for the Python scripts
+  python-script-runner:
+    build:
+      context: ./python_scripts/
+      dockerfile: Dockerfile
+    image: python-runner-image
+    networks:
+      - default
+    depends_on:
+      - postgres-dbt
 
   # container for the dbt Python scripts
   dbt-container:
-    image: python:3.11-slim
     build:
       context: ./dbt/
       dockerfile: Dockerfile
-    environment:
-      DB_TYPE: $DBT_DB_TYPE
-      DB_PORT: $DBT_DB_PORT
-      DB_HOST: $DBT_DB_HOST
-      DB_USER: $DBT_DB_USER
-      DB_PASSWORD: $DBT_DB_PASSWORD
-      DB_NAME: $DBT_DB_NAME
-      DB_SCHEMA: $DBT_DB_SCHEMA
+    image: dbt-runner-image
+    volumes:
+      - dbt-logs-volume:/opt/dbt/logs
+      - dbt-target-volume:/opt/dbt/target
+    networks:
+      - default
+    depends_on:
+      - postgres-dbt
 
   redis:
     # Redis is limited to 7.2-bookworm due to licencing change
@@ -263,4 +290,15 @@ services:
         condition: service_completed_successfully
 
 volumes:
+  postgres-dbt-data:
+    name: postgres-dbt-data
+  dbt-logs-volume:
+    name: dbt-logs-volume
+  dbt-target-volume:
+    name: dbt-target-volume
   postgres-db-volume:
+    name: postgres-db-volume
+
+networks:
+  default:
+    name: airflow-dbt-network

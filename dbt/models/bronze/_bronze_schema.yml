@@ -1,0 +1,63 @@
+version: 2
+
+sources:
+    - name: raw_imports
+      database: "{{ env_var('DB_NAME') }}"
+      schema: raw
+      loader: Airflow
+      description: "Example raw data pulled from Eurostat API"
+      tables:
+        - name: 'eurostat_d3dens_id_value'
+          description: 'Mapping of returned population density values to the region IDs'
+        - name: 'eurostat_d3dens_id_status'
+          description: 'Mapping of returned data status to the region IDs'
+        - name: 'eurostat_d3dens_id_code'
+          description: 'Mapping of returned region IDs to the region codes'
+        - name: 'eurostat_d3dens_code_label'
+          description: 'Mapping of returned region codes to full region names'
+
+models:
+    - name: eurostat_d3dens_id_value
+      description: 'Mapping of returned population density values to the region IDs'
+      columns:
+        - name: 'id'
+          description: 'Region ID'
+          tests:
+            - unique
+        - name: 'value'
+          description: 'Population density value'
+          tests:
+            - not_null
+    - name: eurostat_d3dens_id_status
+      description: 'Mapping of returned data status to the region IDs'
+      columns:
+        - name: 'id'
+          description: 'Region ID'
+          tests:
+            - unique
+        - name: 'status'
+          description: 'Data status'
+          tests:
+            - not_null
+    - name: eurostat_d3dens_id_code
+      description: 'Mapping of returned region IDs to the region codes'
+      columns:
+        - name: 'id'
+          description: 'Region ID'
+          tests:
+            - unique
+        - name: 'code'
+          description: 'Region code'
+          tests:
+            - not_null
+    - name: eurostat_d3dens_code_label
+      description: 'Mapping of returned region codes to full region names'
+      columns:
+        - name: 'code'
+          description: 'Region code'
+          tests:
+            - unique
+        - name: 'label'
+          description: 'Region name'
+          tests:
+            - not_null

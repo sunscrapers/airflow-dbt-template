@@ -1,12 +1,12 @@
-your-project-name:
+airflow_dbt_template:
+  target: "{{ env_var('DBT_ENV')}}"
   outputs:
     dev:
-      type: $DBT_DB_TYPE
-      host: $DBT_DB_HOST
-      port: $DBT_DB_PORT
-      user: $DBT_DB_USER
-      pass: $DBT_DB_PASSWORD
-      dbname: $DBT_DB_NAME
-      schema: $DBT_DB_SCHEMA
+      type: "{{ env_var('DB_TYPE')}}"
+      host: "{{ env_var('DB_HOST')}}"
+      port: "{{ env_var('DB_PORT') | as_number }}"
+      user: "{{ env_var('DB_USER')}}"
+      pass: "{{ env_var('DB_PASSWORD')}}"
+      dbname: "{{ env_var('DB_NAME')}}"
+      schema: ""
       threads: 1
-  target: dev
