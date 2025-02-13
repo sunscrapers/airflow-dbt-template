@@ -34,3 +34,8 @@ Once you run the DAGs in Airflow (first import the data with `data_import_exampl
 - `airflow/`: This is where Airflow DAGs are, as well as some template helper Python scripts, Airflow logs and configs
 - `dbt/`: Repository for the dbt models, schema definitions and config files
 - `python_scripts/`: Place to store Python scripts that we'll use in our data pipeline. It's also where the environment for those scripts is defined in the `Dockerfile` and `requirements.txt`
+
+## Setup files
+- `docker-compose.yml`: Single Docker compose file for all of the Docker images used in the project - Airflow orchestration, Postgres databases as well as Docker operators for dbt and Python used in DAGs.
+- `Dockerfile`: Dockerfile for Airflow container.
+- `Makefile`: We store our `make` commands here to streamline the management experience of the project.
