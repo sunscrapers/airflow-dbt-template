@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  ssh: circleci/ssh@2.0.0
+  ssh: circleci/ssh@1.0.0
 
 jobs:
   lint-build-and-test:
