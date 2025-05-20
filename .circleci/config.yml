@@ -1,0 +1,62 @@
+version: 2.1
+
+orbs:
+  ssh: circleci/ssh@2.0.0
+
+jobs:
+  lint-build-and-test:
+    docker:
+      - image: cimg/python:3.9
+    steps:
+      - checkout
+      - run:
+          name: Install deps
+          command: |
+            python -m venv venv
+            . venv/bin/activate
+            pip install --upgrade pip
+            pip install apache-airflow ruff
+            if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - run:
+          name: Run linting with Ruff
+          command: |
+            . venv/bin/activate
+            ruff check .
+      - run:
+          name: Run unit tests
+          command: |
+            . venv/bin/activate
+            pytest --maxfail=1 --disable-warnings -q
+
+  deploy:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "YOUR_KEY_FINGERPRINT"
+      - run:
+          name: Sync code to EC2
+          command: |
+            rsync -avz --delete \
+              --exclude='.git/*' \
+              ./ ${EC2_USER}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
+      - run:
+          name: Restart Airflow services
+          command: |
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_PUBLIC_IP} << 'EOF'
+              sudo systemctl restart airflow-scheduler
+              sudo systemctl restart airflow-webserver
+            EOF
+
+workflows:
+  version: 2
+  ci-deploy:
+    jobs:
+      - lint-build-and-test
+      - deploy:
+          requires:
+            - lint-build-and-test
+          filters:
+            branches:
+              only: main
