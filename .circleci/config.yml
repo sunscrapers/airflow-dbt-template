@@ -91,6 +91,12 @@ jobs:
     docker:
       - image: cimg/base:stable
     steps:
+      - checkout
+      - run:
+          name: Install rsync
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y rsync
       - add_ssh_keys:
           fingerprints:
             - "EC2_PUBLIC_KEY"
@@ -113,6 +119,12 @@ workflows:
   ci-deploy:
     jobs:
       - lint-build-and-test
+      - terraform-plan:
+          requires:
+            - lint-build-and-test
+      - terraform-apply:
+          requires:
+            - terraform-plan
       - deploy:
           requires:
             - lint-build-and-test
