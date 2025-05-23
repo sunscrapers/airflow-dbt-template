@@ -30,6 +30,63 @@ jobs:
             . venv/bin/activate
             pytest --cov=dags tests/ -v
 
+  terraform-plan:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - aws-cli/setup
+      - terraform/install:
+          terraform_version: 1.5.7
+      - run:
+          name: Set up AWS credentials
+          command: |
+            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+              echo "Missing required AWS environment variables"
+              exit 1
+            fi
+            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+            aws configure set default.region us-east-1
+      - run:
+          name: Create tfvars file
+          command: |
+            cd terraform
+            echo "$TFVARS_JSON" > terraform.tfvars.json
+      - run:
+          name: Initialize Terraform
+          command: |
+            cd terraform
+            terraform init
+      - run:
+          name: Run Terraform Plan
+          command: |
+            cd terraform
+            terraform plan -out=tfplan -var-file=terraform.tfvars.json
+      - persist_to_workspace:
+          root: .
+          paths:
+            - terraform/
+            - terraform/.terraform
+            - terraform/tfplan
+            - terraform/terraform.tfvars.json
+
+  terraform-apply:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - aws-cli/setup
+      - terraform/install:
+          terraform_version: 1.5.7
+      - attach_workspace:
+          at: .
+      - run:
+          name: Apply Terraform Changes
+          command: |
+            cd terraform
+            terraform apply -auto-approve tfplan
+
   deploy:
     docker:
       - image: cimg/base:stable
@@ -59,6 +116,6 @@ workflows:
       - deploy:
           requires:
             - lint-build-and-test
-          filters:
-            branches:
-              only: main
+          # filters:
+          #   branches:
+          #     only: main
