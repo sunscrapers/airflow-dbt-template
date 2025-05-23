@@ -6,8 +6,13 @@ import pytest
 import tempfile
 
 # Fix: Change PROJECT_ROOT to point to the correct root directory (one level up from tests)
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-print("PROJECT_ROOT: " + PROJECT_ROOT + ", DAGS: " + os.path.join(PROJECT_ROOT, "airflow", "dags"))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+print(
+    "PROJECT_ROOT: "
+    + PROJECT_ROOT
+    + ", DAGS: "
+    + os.path.join(PROJECT_ROOT, "airflow", "dags")
+)
 
 
 def test_dag_files_exist():
@@ -20,7 +25,11 @@ def test_dag_files_exist():
 
     # List all files in the directory
     if os.path.isdir(dags_dir):
-        dag_files = [f for f in os.listdir(dags_dir) if f.endswith(".py") and not f.startswith("__")]
+        dag_files = [
+            f
+            for f in os.listdir(dags_dir)
+            if f.endswith(".py") and not f.startswith("__")
+        ]
         print(f"Found DAG files: {dag_files}")
 
     # Check for some DAG files, report which ones we found
@@ -39,8 +48,7 @@ def test_requirements_file_exists():
 
 
 @pytest.mark.skipif(
-    sys.platform.startswith("win"),
-    reason="Skipping venv test on Windows"
+    sys.platform.startswith("win"), reason="Skipping venv test on Windows"
 )
 def test_create_venv_with_requirements():
     """Test that requirements file can be used to create a virtual environment."""
@@ -60,21 +68,29 @@ def test_create_venv_with_requirements():
             [sys.executable, "-m", "venv", venv_dir],
             capture_output=True,
             text=True,
-            check=False
+            check=False,
         )
-        assert result.returncode == 0, f"Failed to create virtual environment: {result.stderr}"
+        assert result.returncode == 0, (
+            f"Failed to create virtual environment: {result.stderr}"
+        )
 
         # Install requirements
-        pip_path = os.path.join(venv_dir, "bin", "pip") if not sys.platform.startswith("win") else os.path.join(venv_dir, "Scripts", "pip")
+        pip_path = (
+            os.path.join(venv_dir, "bin", "pip")
+            if not sys.platform.startswith("win")
+            else os.path.join(venv_dir, "Scripts", "pip")
+        )
         result = subprocess.run(
             [pip_path, "install", "-r", req_path],
             capture_output=True,
             text=True,
             check=False,
-            timeout=300  # 5 minutes timeout
+            timeout=300,  # 5 minutes timeout
         )
         # Just check that the process completes without erroring out completely
-        assert result.returncode == 0, f"Failed to install requirements: {result.stderr}"
+        assert result.returncode == 0, (
+            f"Failed to install requirements: {result.stderr}"
+        )
 
     finally:
         # Clean up

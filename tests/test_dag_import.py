@@ -34,7 +34,7 @@ def setup_environment():
         "DB_PASSWORD": "test_password",
         "DB_NAME": "test_db",
         "DB_SCHEMA": "public",
-        "AIRFLOW__SUPPORT_EMAIL": "test@example.com"
+        "AIRFLOW__SUPPORT_EMAIL": "test@example.com",
     }
 
     for key, value in default_env_vars.items():
@@ -44,7 +44,7 @@ def setup_environment():
         "dags_dir": dags_dir,
         "project_root": project_root,
         "templates_dir": templates_dir,
-        "airflow_dir": airflow_dir
+        "airflow_dir": airflow_dir,
     }
 
 
@@ -54,11 +54,15 @@ def create_mock_module(name):
 
     # Add DAGTemplate class to the dag_templates module
     if name == "dag_templates":
-        mock_module.DAGTemplate = type('DAGTemplate', (), {
-            '__init__': lambda self, **kwargs: None,
-            'create_dag': lambda self, **kwargs: MagicMock(),
-            'add_task': lambda self, **kwargs: MagicMock()
-        })
+        mock_module.DAGTemplate = type(
+            "DAGTemplate",
+            (),
+            {
+                "__init__": lambda self, **kwargs: None,
+                "create_dag": lambda self, **kwargs: MagicMock(),
+                "add_task": lambda self, **kwargs: MagicMock(),
+            },
+        )
 
     # Add needed mock classes or functions based on your DAG requirements
     return mock_module
@@ -74,8 +78,7 @@ def test_basic_dag_integrity(setup_environment):
 
     # Get all Python files that aren't init files
     dag_files = [
-        f for f in os.listdir(dags_dir)
-        if f.endswith(".py") and not f.startswith("__")
+        f for f in os.listdir(dags_dir) if f.endswith(".py") and not f.startswith("__")
     ]
 
     # Skip if no DAG files
@@ -87,11 +90,15 @@ def test_basic_dag_integrity(setup_environment):
         "dag_templates": create_mock_module("dag_templates"),
         "airflow": create_mock_module("airflow"),
         "airflow.operators.python": create_mock_module("airflow.operators.python"),
-        "airflow.providers.docker.operators.docker": create_mock_module("airflow.providers.docker.operators.docker")
+        "airflow.providers.docker.operators.docker": create_mock_module(
+            "airflow.providers.docker.operators.docker"
+        ),
     }
 
     # Add the DockerOperator mock
-    mock_modules["airflow.providers.docker.operators.docker"].DockerOperator = MagicMock()
+    mock_modules[
+        "airflow.providers.docker.operators.docker"
+    ].DockerOperator = MagicMock()
     # Add any other specific operator mocks here
 
     # Apply all mocks with a patch
