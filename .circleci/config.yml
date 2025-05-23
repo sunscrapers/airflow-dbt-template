@@ -157,7 +157,7 @@ jobs:
               cd /opt/airflow-dbt-template/
               sudo docker compose down || echo "No containers to stop"
               sudo docker compose up -d
-EOF
+            EOF
 
 workflows:
   version: 2
