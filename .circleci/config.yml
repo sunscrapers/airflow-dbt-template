@@ -107,6 +107,13 @@ jobs:
       - run:
           name: Sync code to EC2
           command: |
+            # Disable strict host key checking for rsync
+            mkdir -p ~/.ssh
+            echo "Host *
+              StrictHostKeyChecking no
+              UserKnownHostsFile=/dev/null" > ~/.ssh/config
+            chmod 600 ~/.ssh/config
+
             rsync -avz --delete \
               --exclude='.git/*' \
               ./ ${EC2_USER}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
@@ -131,7 +138,7 @@ workflows:
             - terraform-plan
       - deploy:
           requires:
-            - lint-build-and-test
+            - terraform-apply
           # filters:
           #   branches:
           #     only: main
