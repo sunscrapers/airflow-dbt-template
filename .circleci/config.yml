@@ -103,7 +103,7 @@ jobs:
             sudo apt-get install -y rsync
       - add_ssh_keys:
           fingerprints:
-            - "EC2_PUBLIC_KEY"
+            - "EC2_PRIVATE_KEY"
       - run:
           name: Sync code to EC2
           command: |
