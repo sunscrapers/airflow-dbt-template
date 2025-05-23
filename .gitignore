@@ -13,3 +13,8 @@ dbt/logs/
 # Terraform
 .terraform*
 terraform.tfvars*
+
+# testing
+.coverage
+__pycache__/
+test_venv/

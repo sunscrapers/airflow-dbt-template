@@ -30,3 +30,13 @@ recreate_all_clean_db:
 	docker builder prune -f
 	docker compose build --progress=plain --no-cache
 	docker compose up -d
+
+run_tests:
+	python -m venv test_venv && \
+	source test_venv/bin/activate && \
+	pip install -r python_scripts/requirements.txt && \
+	pip install -r tests/test-requirements.txt && \
+	pip install pytest pytest-cov && \
+	pytest --cov=dags tests/ -v && \
+	deactivate && \
+	rm -rf test_venv

@@ -12,18 +12,23 @@ jobs:
             python -m venv venv
             . venv/bin/activate
             pip install --upgrade pip
-            pip install apache-airflow ruff
-            if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+            pip install -r python_scripts/requirements.txt
+            pip install -r tests/test-requirements.txt
       - run:
           name: Run linting with Ruff
           command: |
             . venv/bin/activate
             ruff check .
       - run:
-          name: Run unit tests
+          name: Run project structure tests
           command: |
             . venv/bin/activate
-            pytest --maxfail=1 --disable-warnings -q
+            pytest tests/test_project_structure.py -v
+      - run:
+          name: Run DAG import tests
+          command: |
+            . venv/bin/activate
+            pytest --cov=dags tests/ -v
 
   deploy:
     docker:
