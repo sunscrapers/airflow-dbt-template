@@ -105,17 +105,28 @@ jobs:
           fingerprints:
             - "SHA256:XZxECDr5WBjd5eywDRnkjHe56yLY1848+WLb4Mvav18"
       - run:
-          name: Sync code to EC2
+          name: Debug SSH setup
           command: |
-            # Disable strict host key checking for rsync
             mkdir -p ~/.ssh
             echo "Host *
               StrictHostKeyChecking no
               UserKnownHostsFile=/dev/null" > ~/.ssh/config
             chmod 600 ~/.ssh/config
 
+            # Show keys that CircleCI has added
+            echo "SSH keys added by CircleCI:"
+            ls -la ~/.ssh/
+
+            # Test SSH connection with verbose output
+            echo "Testing SSH connection:"
+            ssh -v ${EC2_USER}@${EC2_PUBLIC_IP} "echo Connection test"
+      - run:
+          name: Sync code to EC2
+          command: |
+            # Use SSH with verbose logging for rsync
             rsync -avz --delete \
               --exclude='.git/*' \
+              -e "ssh -v" \
               ./ ${EC2_USER}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
       - run:
           name: Restart Airflow services
