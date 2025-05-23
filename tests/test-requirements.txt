@@ -1,0 +1,6 @@
+apache-airflow==2.10.3
+psycopg2
+apache-airflow-providers-docker>=3.0.0
+pytest
+pytest-cov
+ruff

@@ -1,0 +1,144 @@
+version: 2.1
+
+orbs:
+  aws-cli: circleci/aws-cli@3.1
+  terraform: circleci/terraform@3.2
+
+jobs:
+  lint-build-and-test:
+    docker:
+      - image: cimg/python:3.9
+    steps:
+      - checkout
+      - run:
+          name: Install deps
+          command: |
+            python -m venv venv
+            . venv/bin/activate
+            pip install --upgrade pip
+            pip install -r python_scripts/requirements.txt
+            pip install -r tests/test-requirements.txt
+      - run:
+          name: Run linting with Ruff
+          command: |
+            . venv/bin/activate
+            ruff check .
+      - run:
+          name: Run project structure tests
+          command: |
+            . venv/bin/activate
+            pytest tests/test_project_structure.py -v
+      - run:
+          name: Run DAG import tests
+          command: |
+            . venv/bin/activate
+            pytest --cov=dags tests/ -v
+
+  terraform-plan:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - aws-cli/setup
+      - terraform/install:
+          terraform_version: 1.5.7
+      - run:
+          name: Set up AWS credentials
+          command: |
+            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+              echo "Missing required AWS environment variables"
+              exit 1
+            fi
+            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+            aws configure set default.region us-east-1
+      - run:
+          name: Create tfvars file
+          command: |
+            cd terraform
+            echo "$TFVARS_JSON" > terraform.tfvars.json
+      - run:
+          name: Initialize Terraform
+          command: |
+            cd terraform
+            terraform init
+      - run:
+          name: Run Terraform Plan
+          command: |
+            cd terraform
+            terraform plan -out=tfplan -var-file=terraform.tfvars.json
+      - persist_to_workspace:
+          root: .
+          paths:
+            - terraform/
+            - terraform/.terraform
+            - terraform/tfplan
+            - terraform/terraform.tfvars.json
+
+  terraform-apply:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - aws-cli/setup
+      - terraform/install:
+          terraform_version: 1.5.7
+      - attach_workspace:
+          at: .
+      - run:
+          name: Apply Terraform Changes
+          command: |
+            cd terraform
+            terraform apply -auto-approve tfplan
+
+  deploy:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: Install rsync
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y rsync
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:XZxECDr5WBjd5eywDRnkjHe56yLY1848+WLb4Mvav18"
+      - run:
+          name: Sync code to EC2
+          command: |
+            # Disable strict host key checking for rsync
+            mkdir -p ~/.ssh
+            echo "Host *
+              StrictHostKeyChecking no
+              UserKnownHostsFile=/dev/null" > ~/.ssh/config
+            chmod 600 ~/.ssh/config
+
+            rsync -avz --delete \
+              --exclude='.git/*' \
+              ./ ${EC2_USER}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
+      - run:
+          name: Restart Airflow services
+          command: |
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_PUBLIC_IP} \<< 'EOF'
+              sudo docker compose down
+              sudo docker compose up -d
+            EOF
+
+workflows:
+  version: 2
+  ci-deploy:
+    jobs:
+      - lint-build-and-test
+      - terraform-plan:
+          requires:
+            - lint-build-and-test
+      - terraform-apply:
+          requires:
+            - terraform-plan
+      - deploy:
+          requires:
+            - terraform-apply
+          # filters:
+          #   branches:
+          #     only: main
