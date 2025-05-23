@@ -119,7 +119,7 @@ jobs:
 
             # Test SSH connection with verbose output
             echo "Testing SSH connection:"
-            ssh -v ${EC2_USER}@${EC2_PUBLIC_IP} "echo Connection test"
+            ssh -v ${EC2_USERNAME}@${EC2_PUBLIC_IP} "echo Connection test"
       - run:
           name: Sync code to EC2
           command: |
@@ -127,11 +127,11 @@ jobs:
             rsync -avz --delete \
               --exclude='.git/*' \
               -e "ssh -v" \
-              ./ ${EC2_USER}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
+              ./ ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
       - run:
           name: Restart Airflow services
           command: |
-            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_PUBLIC_IP} \<< 'EOF'
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
               sudo docker compose down
               sudo docker compose up -d
             EOF
