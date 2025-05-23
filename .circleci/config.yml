@@ -131,10 +131,33 @@ jobs:
       - run:
           name: Restart Airflow services
           command: |
-            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
-              sudo docker compose down
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} << 'EOF'
+              # Install Docker if not already installed
+              if ! command -v docker &> /dev/null; then
+                echo "Installing Docker..."
+                sudo apt-get update
+                sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+                curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+                sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+                sudo apt-get update
+                sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+                sudo usermod -aG docker ${USER}
+
+                # Install Docker Compose
+                sudo curl -L "https://github.com/docker/compose/releases/download/v2.15.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                sudo chmod +x /usr/local/bin/docker-compose
+                sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+                echo "Docker installed successfully"
+              else
+                echo "Docker already installed"
+              fi
+
+              # Run Docker commands
+              cd /opt/airflow-dbt-template/
+              sudo docker compose down || echo "No containers to stop"
               sudo docker compose up -d
-            EOF
+EOF
 
 workflows:
   version: 2
