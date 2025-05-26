@@ -20,7 +20,7 @@ class DAGTemplate:
             retries=0,
             params=None
     ):
-        app_env = os.environ.get('PYTHON_SCIPTS_ENVIRONMENT')
+        app_env = os.environ.get('PYTHON_SCRIPTS_ENVIRONMENT')
         if app_env in ('dev', 'test'):
             schedule_interval = None
         if app_env in ('dev', 'test'):
