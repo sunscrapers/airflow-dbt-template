@@ -18,3 +18,5 @@ terraform.tfvars*
 .coverage
 __pycache__/
 test_venv/
+.pytest_cache/
+.ruff_cache/
