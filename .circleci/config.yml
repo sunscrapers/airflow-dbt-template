@@ -235,6 +235,11 @@ jobs:
             scp -o StrictHostKeyChecking=no airflow_env_vars.json load_env_vars.sh ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/tmp/
             ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "sudo mv /tmp/airflow_env_vars.json /tmp/load_env_vars.sh /opt/airflow-dbt-template/config/ && sudo chown ${USER}:${USER} /opt/airflow-dbt-template/config/* && sudo chmod +x /opt/airflow-dbt-template/config/load_env_vars.sh"
 
+            # Copy docker-compose.yaml to EC2
+            echo "Copying docker-compose.yaml to EC2..."
+            scp -o StrictHostKeyChecking=no docker-compose.yaml ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/tmp/
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "sudo mv /tmp/docker-compose.yaml /opt/airflow-dbt-template/ && sudo chown ${USER}:${USER} /opt/airflow-dbt-template/docker-compose.yaml"
+
             # SSH into EC2 and restart services with new environment variables
             ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
               # Install jq if not already installed
@@ -245,7 +250,13 @@ jobs:
 
               # Source the environment variables and restart services
               cd /opt/airflow-dbt-template/
+              echo "Current directory contents:"
+              ls -la
+              echo "Loading environment variables..."
               source config/load_env_vars.sh
+              echo "Starting Docker services..."
+              sudo docker compose version
+              sudo docker compose config
               sudo docker compose down || echo "No containers to stop"
               sudo -E docker compose up -d
             EOF
