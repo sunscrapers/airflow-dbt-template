@@ -127,12 +127,51 @@ resource "aws_instance" "airflow" {
   user_data = <<-EOF
               #!/bin/bash
               apt-get update
-              apt-get install -y python3-pip
-              pip3 install apache-airflow
-              airflow db init
-              airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin
-              airflow webserver --port 8080 &
-              airflow scheduler &
+              if ! command -v docker &> /dev/null; then
+                echo "Installing Docker..."
+                sudo apt-get update
+                sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+                curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+                sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+                sudo apt-get update
+                sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+                sudo usermod -aG docker ubuntu
+
+                # Install Docker Compose
+                sudo curl -L "https://github.com/docker/compose/releases/download/v2.15.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                sudo chmod +x /usr/local/bin/docker-compose
+                sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+                echo "Docker installed successfully"
+              else
+                echo "Docker already installed"
+              fi
+
+              # Install Python
+              apt-get install -y python3-pip awscli
+
+              # Create directory for the script
+              mkdir -p /opt/airflow/scripts
+
+              # Create script to load parameters
+              cat > /opt/airflow/scripts/load-parameters.sh <<'EOSCRIPT'
+              #!/bin/bash
+
+              %{ for key, value in var.airflow_env_variables ~}
+              export ${key}="${value}"
+              %{ endfor ~}
+
+              export DB_HOST = "${aws_db_instance.postgres.endpoint}"
+              export DB_USER = "${var.db_username}"
+              export DB_NAME = "${var.db_name}"
+
+              EOSCRIPT
+
+              # Make the script executable
+              chmod +x /opt/airflow/scripts/load-parameters.sh
+
+              # Source the script and start Airflow
+              source /opt/airflow/scripts/load-parameters.sh
               EOF
 
   tags = { Name = "AirflowDbtTemplateBlogPost" }

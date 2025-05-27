@@ -27,3 +27,9 @@ variable "db_password" {
     description = "Postgres master password"
     type = string
 }
+
+variable "airflow_env_variables" {
+  description = "Map of all environment variables for Airflow"
+  type = map(string)
+  sensitive = true  # Making it sensitive since it might contain sensitive values
+}
