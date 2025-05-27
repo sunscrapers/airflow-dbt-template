@@ -94,12 +94,19 @@ jobs:
           name: Get EC2 Public IP
           command: |
             cd terraform
+            echo "Running terraform output command..."
+            terraform output
+            echo "Getting airflow_instance_public_ip..."
             EC2_IP=$(terraform output -raw airflow_instance_public_ip)
+            echo "Raw EC2 IP value: '$EC2_IP'"
             if [ -z "$EC2_IP" ]; then
               echo "Failed to get EC2 public IP"
               exit 1
             fi
             echo "Retrieved EC2 public IP: $EC2_IP"
+            # Store in a file that will be persisted
+            echo "$EC2_IP" > ec2_public_ip.txt
+            # Also set in environment
             echo "export EC2_PUBLIC_IP=$EC2_IP" >> $BASH_ENV
             echo "EC2_PUBLIC_IP=$EC2_IP" >> $CIRCLE_ENV
       - persist_to_workspace:
@@ -109,6 +116,7 @@ jobs:
             - terraform/.terraform
             - terraform/tfplan
             - terraform/terraform.tfvars.json
+            - ec2_public_ip.txt
 
   deploy:
     docker:
@@ -121,10 +129,26 @@ jobs:
       - attach_workspace:
           at: .
       - run:
+          name: Load EC2 Public IP
+          command: |
+            if [ -f "ec2_public_ip.txt" ]; then
+              EC2_IP=$(cat ec2_public_ip.txt)
+              echo "Loaded EC2 IP from file: $EC2_IP"
+              echo "export EC2_PUBLIC_IP=$EC2_IP" >> $BASH_ENV
+            else
+              echo "ec2_public_ip.txt not found in workspace"
+              exit 1
+            fi
+      - run:
           name: Verify EC2 Public IP
           command: |
+            echo "Current EC2_PUBLIC_IP value: '$EC2_PUBLIC_IP'"
             if [ -z "$EC2_PUBLIC_IP" ]; then
               echo "EC2_PUBLIC_IP is not set"
+              exit 1
+            fi
+            if [ "$EC2_PUBLIC_IP" = "\${EC2_PUBLIC_IP}" ]; then
+              echo "EC2_PUBLIC_IP was not properly interpolated"
               exit 1
             fi
             echo "Using EC2 Public IP: $EC2_PUBLIC_IP"
@@ -147,7 +171,7 @@ jobs:
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${EC2_USERNAME}@${EC2_PUBLIC_IP} 'echo "SSH connection successful"'
 
             # Deploy to EC2 and set up environment variables
-            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} << 'EOF'
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
               # Create directory for environment variables if it doesn't exist
               mkdir -p /opt/airflow-dbt-template/config
 
