@@ -15,10 +15,6 @@ variable "key_name" {
     description = "EC2 key pair name"
     type = string
 }
-variable "db_name" {
-    description = "Postgres database name"
-    type = string
-}
 
 # Airflow Database Variables
 variable "airflow_db_username" {
