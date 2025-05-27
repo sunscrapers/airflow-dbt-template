@@ -94,7 +94,14 @@ jobs:
           name: Get EC2 Public IP
           command: |
             cd terraform
-            echo "export EC2_PUBLIC_IP=$(terraform output -raw airflow_instance_public_ip)" >> $BASH_ENV
+            EC2_IP=$(terraform output -raw airflow_instance_public_ip)
+            if [ -z "$EC2_IP" ]; then
+              echo "Failed to get EC2 public IP"
+              exit 1
+            fi
+            echo "Retrieved EC2 public IP: $EC2_IP"
+            echo "export EC2_PUBLIC_IP=$EC2_IP" >> $BASH_ENV
+            echo "EC2_PUBLIC_IP=$EC2_IP" >> $CIRCLE_ENV
       - persist_to_workspace:
           root: .
           paths:
@@ -107,7 +114,8 @@ jobs:
     docker:
       - image: cimg/base:stable
     environment:
-      EC2_PUBLIC_IP: ${EC2_PUBLIC_IP}
+      EC2_PUBLIC_IP: "${EC2_PUBLIC_IP}"
+      EC2_USERNAME: "ubuntu"
     steps:
       - checkout
       - attach_workspace:
@@ -134,8 +142,12 @@ jobs:
             # Create a temporary file with the environment variables JSON
             echo "$AIRFLOW_ENV_VARS_JSON" > airflow_env_vars.json
 
+            # Verify SSH connection
+            echo "Testing SSH connection to ${EC2_USERNAME}@${EC2_PUBLIC_IP}..."
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${EC2_USERNAME}@${EC2_PUBLIC_IP} 'echo "SSH connection successful"'
+
             # Deploy to EC2 and set up environment variables
-            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} << 'EOF'
               # Create directory for environment variables if it doesn't exist
               mkdir -p /opt/airflow-dbt-template/config
 
