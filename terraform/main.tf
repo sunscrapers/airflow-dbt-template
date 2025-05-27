@@ -143,17 +143,40 @@ resource "aws_db_subnet_group" "rds_subnets" {
   tags       = { Name = "AirflowDbtTemplateBlogPost" }
 }
 
-resource "aws_db_instance" "postgres" {
+# RDS Postgres for Airflow
+resource "aws_db_instance" "airflow_postgres" {
   identifier              = "airflow-db"
   engine                  = "postgres"
   instance_class          = "db.t3.micro"
   allocated_storage       = 20
-  db_name                 = var.db_name
-  username                = var.db_username
-  password                = var.db_password
+  db_name                 = "airflow"
+  username                = var.airflow_db_username
+  password                = var.airflow_db_password
   publicly_accessible     = true
   skip_final_snapshot     = true
   vpc_security_group_ids  = [aws_security_group.rds_sg.id]
   db_subnet_group_name    = aws_db_subnet_group.rds_subnets.name
-  tags = { Name = "AirflowDbtTemplateBlogPost" }
+  tags = {
+    Name = "AirflowDbtTemplateBlogPost"
+    Purpose = "Airflow"
+  }
+}
+
+# RDS Postgres for dbt
+resource "aws_db_instance" "dbt_postgres" {
+  identifier              = "dbt-db"
+  engine                  = "postgres"
+  instance_class          = "db.t3.micro"
+  allocated_storage       = 20
+  db_name                 = "dbtpostgres"
+  username                = var.dbt_db_username
+  password                = var.dbt_db_password
+  publicly_accessible     = true
+  skip_final_snapshot     = true
+  vpc_security_group_ids  = [aws_security_group.rds_sg.id]
+  db_subnet_group_name    = aws_db_subnet_group.rds_subnets.name
+  tags = {
+    Name = "AirflowDbtTemplateBlogPost"
+    Purpose = "dbt"
+  }
 }

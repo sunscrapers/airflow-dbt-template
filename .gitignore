@@ -1,4 +1,5 @@
 *.env
+*.env.json
 airflow/dags/__pycache__
 dbt/profiles.yml
 airflow/logs/*

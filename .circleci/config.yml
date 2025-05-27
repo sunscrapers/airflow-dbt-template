@@ -90,12 +90,36 @@ jobs:
           command: |
             cd terraform
             terraform apply -auto-approve tfplan
+      - run:
+          name: Get EC2 Public IP
+          command: |
+            cd terraform
+            echo "export EC2_PUBLIC_IP=$(terraform output -raw airflow_instance_public_ip)" >> $BASH_ENV
+      - persist_to_workspace:
+          root: .
+          paths:
+            - terraform/
+            - terraform/.terraform
+            - terraform/tfplan
+            - terraform/terraform.tfvars.json
 
   deploy:
     docker:
       - image: cimg/base:stable
+    environment:
+      EC2_PUBLIC_IP: ${EC2_PUBLIC_IP}
     steps:
       - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Verify EC2 Public IP
+          command: |
+            if [ -z "$EC2_PUBLIC_IP" ]; then
+              echo "EC2_PUBLIC_IP is not set"
+              exit 1
+            fi
+            echo "Using EC2 Public IP: $EC2_PUBLIC_IP"
       - run:
           name: Install rsync
           command: |
@@ -105,58 +129,57 @@ jobs:
           fingerprints:
             - "SHA256:XZxECDr5WBjd5eywDRnkjHe56yLY1848+WLb4Mvav18"
       - run:
-          name: Debug SSH setup
+          name: Deploy to EC2
           command: |
-            mkdir -p ~/.ssh
-            echo "Host *
-              StrictHostKeyChecking no
-              UserKnownHostsFile=/dev/null" > ~/.ssh/config
-            chmod 600 ~/.ssh/config
+            # Create a temporary file with the environment variables JSON
+            echo "$AIRFLOW_ENV_VARS_JSON" > airflow_env_vars.json
 
-            # Show keys that CircleCI has added
-            echo "SSH keys added by CircleCI:"
-            ls -la ~/.ssh/
+            # Deploy to EC2 and set up environment variables
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} << 'EOF'
+              # Create directory for environment variables if it doesn't exist
+              mkdir -p /opt/airflow-dbt-template/config
 
-            # Test SSH connection with verbose output
-            echo "Testing SSH connection:"
-            ssh -v ${EC2_USERNAME}@${EC2_PUBLIC_IP} "echo Connection test"
-      - run:
-          name: Sync code to EC2
-          command: |
-            # Use SSH with verbose logging for rsync
-            rsync -avz --delete \
-              --exclude='.git/*' \
-              -e "ssh -v" \
-              ./ ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
-      - run:
-          name: Restart Airflow services
-          command: |
-            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
-              # Install Docker if not already installed
-              if ! command -v docker &> /dev/null; then
-                echo "Installing Docker..."
+              # Create a script to load environment variables
+              cat > /opt/airflow-dbt-template/config/load_env_vars.sh << 'EOSCRIPT'
+              #!/bin/bash
+
+              # Function to convert JSON to environment variables
+              json_to_env() {
+                local json_file=$1
+                while IFS="=" read -r key value; do
+                  # Remove quotes and export the variable
+                  key=$(echo $key | tr -d '"')
+                  value=$(echo $value | tr -d '"')
+                  export "$key=$value"
+                done < <(jq -r 'to_entries | .[] | "\(.key)=\(.value)"' "$json_file")
+              }
+
+              # Load environment variables from JSON
+              if [ -f "/opt/airflow-dbt-template/config/airflow_env_vars.json" ]; then
+                json_to_env "/opt/airflow-dbt-template/config/airflow_env_vars.json"
+              fi
+              EOSCRIPT
+
+              # Make the script executable
+              chmod +x /opt/airflow-dbt-template/config/load_env_vars.sh
+            EOF
+
+            # Copy the environment variables JSON file to EC2
+            scp -o StrictHostKeyChecking=no airflow_env_vars.json ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/config/
+
+            # SSH into EC2 and restart services with new environment variables
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} << 'EOF'
+              # Install jq if not already installed
+              if ! command -v jq &> /dev/null; then
                 sudo apt-get update
-                sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-                curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-                sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-                sudo apt-get update
-                sudo apt-get install -y docker-ce docker-ce-cli containerd.io
-                sudo usermod -aG docker ${USER}
-
-                # Install Docker Compose
-                sudo curl -L "https://github.com/docker/compose/releases/download/v2.15.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-                sudo chmod +x /usr/local/bin/docker-compose
-                sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
-
-                echo "Docker installed successfully"
-              else
-                echo "Docker already installed"
+                sudo apt-get install -y jq
               fi
 
-              # Run Docker commands
+              # Source the environment variables and restart services
               cd /opt/airflow-dbt-template/
+              source config/load_env_vars.sh
               sudo docker compose down || echo "No containers to stop"
-              sudo docker compose up -d
+              sudo -E docker compose up -d
             EOF
 
 workflows:

@@ -14,25 +14,47 @@ output "airflow_instance_public_dns" {
   value       = aws_instance.airflow.public_dns
 }
 
-# RDS Outputs
-output "rds_endpoint" {
-  description = "The connection endpoint for the RDS instance"
-  value       = aws_db_instance.postgres.endpoint
+# Airflow RDS Outputs
+output "airflow_rds_endpoint" {
+  description = "The connection endpoint for the Airflow RDS instance"
+  value       = aws_db_instance.airflow_postgres.endpoint
 }
 
-output "rds_port" {
-  description = "The port the RDS instance is listening on"
-  value       = aws_db_instance.postgres.port
+output "airflow_rds_port" {
+  description = "The port the Airflow RDS instance is listening on"
+  value       = aws_db_instance.airflow_postgres.port
 }
 
-output "rds_database_name" {
-  description = "The database name"
-  value       = aws_db_instance.postgres.db_name
+output "airflow_rds_database_name" {
+  description = "The Airflow database name"
+  value       = aws_db_instance.airflow_postgres.db_name
 }
 
-output "rds_username" {
-  description = "The master username for the database"
-  value       = aws_db_instance.postgres.username
+output "airflow_rds_username" {
+  description = "The master username for the Airflow database"
+  value       = aws_db_instance.airflow_postgres.username
+  sensitive   = true
+}
+
+# dbt RDS Outputs
+output "dbt_rds_endpoint" {
+  description = "The connection endpoint for the dbt RDS instance"
+  value       = aws_db_instance.dbt_postgres.endpoint
+}
+
+output "dbt_rds_port" {
+  description = "The port the dbt RDS instance is listening on"
+  value       = aws_db_instance.dbt_postgres.port
+}
+
+output "dbt_rds_database_name" {
+  description = "The dbt database name"
+  value       = aws_db_instance.dbt_postgres.db_name
+}
+
+output "dbt_rds_username" {
+  description = "The master username for the dbt database"
+  value       = aws_db_instance.dbt_postgres.username
   sensitive   = true
 }
 

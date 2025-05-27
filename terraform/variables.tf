@@ -19,13 +19,27 @@ variable "db_name" {
     description = "Postgres database name"
     type = string
 }
-variable "db_username" {
-    description = "Postgres master username"
+
+# Airflow Database Variables
+variable "airflow_db_username" {
+    description = "Postgres master username for Airflow database"
     type = string
 }
-variable "db_password" {
-    description = "Postgres master password"
+variable "airflow_db_password" {
+    description = "Postgres master password for Airflow database"
     type = string
+    sensitive = true
+}
+
+# dbt Database Variables
+variable "dbt_db_username" {
+    description = "Postgres master username for dbt database"
+    type = string
+}
+variable "dbt_db_password" {
+    description = "Postgres master password for dbt database"
+    type = string
+    sensitive = true
 }
 
 variable "airflow_env_variables" {
