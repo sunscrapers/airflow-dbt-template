@@ -182,13 +182,13 @@ jobs:
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${EC2_USERNAME}@${EC2_PUBLIC_IP} 'echo "SSH connection successful"'
 
             # Deploy to EC2 and set up environment variables
-            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} << 'EOF'
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
               # Create directory for environment variables if it doesn't exist
               sudo mkdir -p /opt/airflow-dbt-template/config
               sudo chown -R ${USER}:${USER} /opt/airflow-dbt-template
 
               # Create a script to load environment variables
-              sudo tee /opt/airflow-dbt-template/config/load_env_vars.sh > /dev/null << 'EOSCRIPT'
+              sudo tee /opt/airflow-dbt-template/config/load_env_vars.sh > /dev/null \<< 'EOSCRIPT'
               #!/bin/bash
 
               # Function to convert JSON to environment variables
@@ -218,7 +218,7 @@ jobs:
             ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "sudo mv /tmp/airflow_env_vars.json /opt/airflow-dbt-template/config/ && sudo chown ${USER}:${USER} /opt/airflow-dbt-template/config/airflow_env_vars.json"
 
             # SSH into EC2 and restart services with new environment variables
-            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} << 'EOF'
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
               # Install jq if not already installed
               if ! command -v jq &> /dev/null; then
                 sudo apt-get update
