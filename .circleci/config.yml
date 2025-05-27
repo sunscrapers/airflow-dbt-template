@@ -240,6 +240,29 @@ jobs:
             scp -o StrictHostKeyChecking=no docker-compose.yaml ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/tmp/
             ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "sudo mv /tmp/docker-compose.yaml /opt/airflow-dbt-template/ && sudo chown ${USER}:${USER} /opt/airflow-dbt-template/docker-compose.yaml"
 
+            # Copy all necessary directories to EC2
+            echo "Copying project directories to EC2..."
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "mkdir -p /opt/airflow-dbt-template/{dbt,python_scripts,airflow}"
+
+            # Copy dbt directory
+            echo "Copying dbt directory..."
+            tar -czf - ./dbt | ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "cd /opt/airflow-dbt-template && tar -xzf -"
+
+            # Copy python_scripts directory
+            echo "Copying python_scripts directory..."
+            tar -czf - ./python_scripts | ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "cd /opt/airflow-dbt-template && tar -xzf -"
+
+            # Copy airflow directory
+            echo "Copying airflow directory..."
+            tar -czf - ./airflow | ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "cd /opt/airflow-dbt-template && tar -xzf -"
+
+            # Copy root Dockerfile
+            echo "Copying root Dockerfile..."
+            scp -o StrictHostKeyChecking=no Dockerfile ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
+
+            # Set proper permissions
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "sudo chown -R ${USER}:${USER} /opt/airflow-dbt-template"
+
             # SSH into EC2 and restart services with new environment variables
             ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
               # Install jq if not already installed
