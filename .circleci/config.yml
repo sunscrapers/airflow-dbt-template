@@ -182,12 +182,13 @@ jobs:
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${EC2_USERNAME}@${EC2_PUBLIC_IP} 'echo "SSH connection successful"'
 
             # Deploy to EC2 and set up environment variables
-            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} << 'EOF'
               # Create directory for environment variables if it doesn't exist
-              mkdir -p /opt/airflow-dbt-template/config
+              sudo mkdir -p /opt/airflow-dbt-template/config
+              sudo chown -R ${USER}:${USER} /opt/airflow-dbt-template
 
               # Create a script to load environment variables
-              cat > /opt/airflow-dbt-template/config/load_env_vars.sh \<< 'EOSCRIPT'
+              sudo tee /opt/airflow-dbt-template/config/load_env_vars.sh > /dev/null << 'EOSCRIPT'
               #!/bin/bash
 
               # Function to convert JSON to environment variables
@@ -208,14 +209,16 @@ jobs:
               EOSCRIPT
 
               # Make the script executable
-              chmod +x /opt/airflow-dbt-template/config/load_env_vars.sh
+              sudo chmod +x /opt/airflow-dbt-template/config/load_env_vars.sh
+              sudo chown ${USER}:${USER} /opt/airflow-dbt-template/config/load_env_vars.sh
             EOF
 
             # Copy the environment variables JSON file to EC2
-            scp -o StrictHostKeyChecking=no airflow_env_vars.json ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/config/
+            scp -o StrictHostKeyChecking=no airflow_env_vars.json ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/tmp/airflow_env_vars.json
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "sudo mv /tmp/airflow_env_vars.json /opt/airflow-dbt-template/config/ && sudo chown ${USER}:${USER} /opt/airflow-dbt-template/config/airflow_env_vars.json"
 
             # SSH into EC2 and restart services with new environment variables
-            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} << 'EOF'
               # Install jq if not already installed
               if ! command -v jq &> /dev/null; then
                 sudo apt-get update
