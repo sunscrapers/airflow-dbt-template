@@ -162,6 +162,7 @@ resource "aws_db_instance" "airflow_postgres" {
   skip_final_snapshot     = true
   vpc_security_group_ids  = [aws_security_group.rds_sg.id]
   db_subnet_group_name    = aws_db_subnet_group.rds_subnets.name
+  storage_encrypted       = true
   tags = {
     Name = "AirflowDbtTemplateBlogPost"
     Purpose = "Airflow"
@@ -181,6 +182,7 @@ resource "aws_db_instance" "dbt_postgres" {
   skip_final_snapshot     = true
   vpc_security_group_ids  = [aws_security_group.rds_sg.id]
   db_subnet_group_name    = aws_db_subnet_group.rds_subnets.name
+  storage_encrypted       = true
   tags = {
     Name = "AirflowDbtTemplateBlogPost"
     Purpose = "dbt"

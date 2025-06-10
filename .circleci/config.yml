@@ -125,8 +125,8 @@ jobs:
             AIRFLOW_UID=501
             AIRFLOW_PROJ_DIR=./airflow
             AIRFLOW__CORE__EXECUTOR=LocalExecutor
-            AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_RDS_USERNAME}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_RDS_HOST}:${AIRFLOW_RDS_PORT}/${AIRFLOW_RDS_DB_NAME}
-            AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://${AIRFLOW_RDS_USERNAME}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_RDS_HOST}:${AIRFLOW_RDS_PORT}/${AIRFLOW_RDS_DB_NAME}
+            AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_RDS_USERNAME}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_RDS_HOST}:${AIRFLOW_RDS_PORT}/${AIRFLOW_RDS_DB_NAME}?sslmode=require
+            AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://${AIRFLOW_RDS_USERNAME}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_RDS_HOST}:${AIRFLOW_RDS_PORT}/${AIRFLOW_RDS_DB_NAME}?sslmode=require
             AIRFLOW__CELERY__BROKER_URL=redis://:@redis:6379/0
             AIRFLOW__CORE__FERNET_KEY=your-fernet-key-here
             AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
@@ -158,7 +158,7 @@ jobs:
             DBT_DB_PASSWORD=${DBT_DB_PASSWORD}
             DBT_DB_NAME=${DBT_RDS_DB_NAME}
             DBT_DB_SCHEMA=public
-            DBT_LOGS_HOST_PATH=/opt/airflow-dbt-template/dbt/logs
+            DBT_LOGS_HOST_PATH=/tmp/dbt_logs
             PYTHON_SCIPTS_ENVIRONMENT=prod
             airflow_rds_endpoint=${AIRFLOW_RDS_HOST}
             airflow_rds_port=${AIRFLOW_RDS_PORT}

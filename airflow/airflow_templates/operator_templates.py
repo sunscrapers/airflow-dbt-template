@@ -24,9 +24,16 @@ class OperatorTemplate:
         # Use default path if not set
         dbt_logs_host_path = os.getenv("DBT_LOGS_HOST_PATH")
 
-        # Convert to absolute path and ensure directory exists
-        dbt_logs_host_path = os.path.abspath(dbt_logs_host_path)
-        os.makedirs(dbt_logs_host_path, exist_ok=True)
+        # FIXED: Only create directory if it's a writable path
+        if dbt_logs_host_path and dbt_logs_host_path.startswith('/tmp'):
+            # Convert to absolute path and ensure directory exists only for writable paths
+            dbt_logs_host_path = os.path.abspath(dbt_logs_host_path)
+            try:
+                os.makedirs(dbt_logs_host_path, exist_ok=True)
+            except PermissionError:
+                # If we can't create the directory, use a fallback path
+                dbt_logs_host_path = "/tmp/dbt_logs"
+                os.makedirs(dbt_logs_host_path, exist_ok=True)
 
         dbt_main_dir = "/opt/dbt/"
         profiles_dir = "/opt/dbt/"
