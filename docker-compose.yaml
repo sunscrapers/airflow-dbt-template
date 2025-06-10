@@ -47,8 +47,6 @@ services:
     image: python-runner-image
     networks:
       - default
-    depends_on:
-      - postgres-dbt
 
   # container for the dbt Python scripts
   dbt-container:
@@ -61,8 +59,6 @@ services:
       - dbt-target-volume:/opt/dbt/target
     networks:
       - default
-    depends_on:
-      - postgres-dbt
 
   redis:
     # Redis is limited to 7.2-bookworm due to licencing change
