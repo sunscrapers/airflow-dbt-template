@@ -105,7 +105,7 @@ jobs:
             DBT_RDS_USERNAME=$(terraform output -raw dbt_rds_username)
             EC2_IP=$(terraform output -raw airflow_instance_public_ip)
 
-            # Create .env file for Docker Compose
+            # Create .env file with direct values
             cat > ../.env \<< EOF
             # Airflow Configuration
             AIRFLOW_UID=501
@@ -120,36 +120,22 @@ jobs:
             AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
             AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK=true
             AIRFLOW__SUPPORT_EMAIL=admin@example.com
-
-            # Airflow Redis
             AIRFLOW_REDIS_PORT=6379
-
-            # Airflow Webserver
             AIRFLOW_WEBSERVER_PORT_OUT=8080
             AIRFLOW_WEBSERVER_PORT_IN=8080
-
-            # Airflow Scheduler
             AIRFLOW_SCHEDULER_PORT=8974
-
-            # Airflow Init
             _AIRFLOW_DB_MIGRATE=true
             _AIRFLOW_WWW_USER_CREATE=true
             _AIRFLOW_WWW_USER_USERNAME=airflow
             _AIRFLOW_WWW_USER_PASSWORD=airflow
             _PIP_ADDITIONAL_REQUIREMENTS=
-
-            # Flower
             FLOWER_PORT_OUT=5555
             FLOWER_PORT_IN=5555
-
-            # dbt Configuration
             DBT_POSTGRES_USER=${DBT_RDS_USERNAME}
             DBT_POSTGRES_PASSWORD=${DBT_DB_PASSWORD}
             DBT_POSTGRES_DB=${DBT_RDS_DB_NAME}
             DBT_DB_PORT_OUT=5435
             DBT_DB_PORT_IN=5432
-
-            # dbt Container
             DBT_ENV=prod
             DBT_DB_TYPE=postgres
             DBT_DB_PORT=${DBT_RDS_PORT}
@@ -159,11 +145,7 @@ jobs:
             DBT_DB_NAME=${DBT_RDS_DB_NAME}
             DBT_DB_SCHEMA=public
             DBT_LOGS_HOST_PATH=/opt/airflow-dbt-template/dbt/logs
-
-            # Python scripts container
             PYTHON_SCIPTS_ENVIRONMENT=prod
-
-            # Production RDS endpoints (for docker-compose.yaml)
             airflow_rds_endpoint=${AIRFLOW_RDS_ENDPOINT}
             airflow_rds_port=${AIRFLOW_RDS_PORT}
             airflow_db_username=${AIRFLOW_RDS_USERNAME}
