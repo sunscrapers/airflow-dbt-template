@@ -117,7 +117,7 @@ data "aws_ami" "ubuntu" {
 
 resource "aws_instance" "airflow" {
   ami                         = data.aws_ami.ubuntu.id
-  instance_type               = "t3.medium"
+  instance_type               = "t3.large"
   subnet_id                   = aws_subnet.public.id
   vpc_security_group_ids      = [aws_security_group.airflow_sg.id]
   key_name                    = var.key_name
@@ -125,7 +125,7 @@ resource "aws_instance" "airflow" {
 
   # Add root volume configuration
   root_block_device {
-    volume_size = 20  # 20GB instead of default 8GB
+    volume_size = 20
     volume_type = "gp3"
   }
 

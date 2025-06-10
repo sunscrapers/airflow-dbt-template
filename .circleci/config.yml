@@ -303,6 +303,12 @@ jobs:
               echo "Testing dbt RDS connection..."
               nc -zv ${dbt_rds_endpoint} ${dbt_rds_port} || echo "dbt RDS connection failed"
 
+              # Check specific environment variables
+              echo "Checking specific environment variables:"
+              grep "AIRFLOW__DATABASE__SQL_ALCHEMY_CONN" .env
+              grep "airflow_rds_port" .env
+              grep "dbt_rds_port" .env
+
               echo "Starting Docker services..."
               sudo docker compose version
               sudo docker compose config
