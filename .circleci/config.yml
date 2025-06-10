@@ -75,50 +75,70 @@ jobs:
             - terraform/tfplan
             - terraform/terraform.tfvars.json
 
-  terraform-apply:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
-      - aws-cli/setup
-      - terraform/install:
-          terraform_version: 1.5.7
-      - attach_workspace:
-          at: .
-      - run:
-          name: Apply Terraform Changes
-          command: |
-            cd terraform
-            terraform apply -auto-approve tfplan
-      - run:
-          name: Get EC2 Public IP
-          command: |
-            cd terraform
-            echo "Running terraform output command..."
-            terraform output
-            echo "Getting airflow_instance_public_ip..."
-            EC2_IP=$(terraform output -raw airflow_instance_public_ip)
-            echo "Raw EC2 IP value: '$EC2_IP'"
-            if [ -z "$EC2_IP" ]; then
-              echo "Failed to get EC2 public IP"
-              exit 1
-            fi
-            echo "Retrieved EC2 public IP: $EC2_IP"
-            # Store in a file that will be persisted (in the root directory)
-            cd ..
-            echo "$EC2_IP" > ec2_public_ip.txt
-            # Set environment variable for current job
-            echo "export EC2_PUBLIC_IP=$EC2_IP" >> $BASH_ENV
-            # Set environment variable for next job using CircleCI's environment file
-            echo "EC2_PUBLIC_IP=$EC2_IP" >> $BASH_ENV
-      - persist_to_workspace:
-          root: .
-          paths:
-            - terraform/
-            - terraform/.terraform
-            - terraform/tfplan
-            - terraform/terraform.tfvars.json
-            - ec2_public_ip.txt
+terraform-apply:
+  docker:
+    - image: cimg/base:stable
+  steps:
+    - checkout
+    - aws-cli/setup
+    - terraform/install:
+        terraform_version: 1.5.7
+    - attach_workspace:
+        at: .
+    - run:
+        name: Apply Terraform Changes
+        command: |
+          cd terraform
+          terraform apply -auto-approve tfplan
+    - run:
+        name: Get Terraform Outputs and Create Environment Variables JSON
+        command: |
+          cd terraform
+          # Get all required outputs
+          AIRFLOW_RDS_ENDPOINT=$(terraform output -raw airflow_rds_endpoint)
+          AIRFLOW_RDS_PORT=$(terraform output -raw airflow_rds_port)
+          AIRFLOW_RDS_DB_NAME=$(terraform output -raw airflow_rds_database_name)
+          AIRFLOW_RDS_USERNAME=$(terraform output -raw airflow_rds_username)
+          DBT_RDS_ENDPOINT=$(terraform output -raw dbt_rds_endpoint)
+          DBT_RDS_PORT=$(terraform output -raw dbt_rds_port)
+          DBT_RDS_DB_NAME=$(terraform output -raw dbt_rds_database_name)
+          DBT_RDS_USERNAME=$(terraform output -raw dbt_rds_username)
+          EC2_IP=$(terraform output -raw airflow_instance_public_ip)
+
+          # Create environment variables JSON
+          cat > ../airflow_env_vars.json \<< EOF
+          {
+            "AIRFLOW__DATABASE__SQL_ALCHEMY_CONN": "postgresql+psycopg2://${AIRFLOW_RDS_USERNAME}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_RDS_ENDPOINT}:${AIRFLOW_RDS_PORT}/${AIRFLOW_RDS_DB_NAME}",
+            "DB_TYPE": "postgres",
+            "DB_PORT": "${DBT_RDS_PORT}",
+            "DB_HOST": "${DBT_RDS_ENDPOINT}",
+            "DB_USER": "${DBT_RDS_USERNAME}",
+            "DB_PASSWORD": "${DBT_DB_PASSWORD}",
+            "DB_NAME": "${DBT_RDS_DB_NAME}",
+            "DB_SCHEMA": "public",
+            "AIRFLOW__CORE__EXECUTOR": "LocalExecutor",
+            "AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION": "True",
+            "AIRFLOW__CORE__LOAD_EXAMPLES": "False",
+            "AIRFLOW__API__AUTH_BACKENDS": "airflow.api.auth.backend.basic_auth",
+            "AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK": "True",
+            "AIRFLOW__SUPPORT_EMAIL": "admin@example.com",
+            "DBT_ENV": "dev",
+            "DBT_LOGS_HOST_PATH": "/opt/airflow-dbt-template/dbt/logs"
+          }
+          EOF
+
+          # Store EC2 IP for next job
+          echo "$EC2_IP" > ../ec2_public_ip.txt
+          echo "export EC2_PUBLIC_IP=$EC2_IP" >> $BASH_ENV
+    - persist_to_workspace:
+        root: .
+        paths:
+          - terraform/
+          - terraform/.terraform
+          - terraform/tfplan
+          - terraform/terraform.tfvars.json
+          - airflow_env_vars.json
+          - ec2_public_ip.txt
 
   deploy:
     docker:
