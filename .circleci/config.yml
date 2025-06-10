@@ -120,7 +120,7 @@ jobs:
             DBT_RDS_HOST=$(echo $DBT_RDS_ENDPOINT | cut -d: -f1)
 
             # Create .env file with direct values
-            cat > ../.env << EOF
+            cat > ../.env \<< EOF
             # Airflow Configuration
             AIRFLOW_UID=501
             AIRFLOW_PROJ_DIR=./airflow
