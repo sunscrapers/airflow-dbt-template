@@ -91,7 +91,7 @@ jobs:
             cd terraform
             terraform apply -auto-approve tfplan
       - run:
-          name: Get Terraform Outputs and Create Environment Variables JSON
+          name: Get Terraform Outputs and Create Environment Variables
           command: |
             cd terraform
             # Get all required outputs
@@ -105,26 +105,73 @@ jobs:
             DBT_RDS_USERNAME=$(terraform output -raw dbt_rds_username)
             EC2_IP=$(terraform output -raw airflow_instance_public_ip)
 
-            # Create environment variables JSON
-            cat > ../airflow_env_vars.json \<< EOF
-            {
-              "AIRFLOW__DATABASE__SQL_ALCHEMY_CONN": "postgresql+psycopg2://${AIRFLOW_RDS_USERNAME}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_RDS_ENDPOINT}:${AIRFLOW_RDS_PORT}/${AIRFLOW_RDS_DB_NAME}",
-              "DB_TYPE": "postgres",
-              "DB_PORT": "${DBT_RDS_PORT}",
-              "DB_HOST": "${DBT_RDS_ENDPOINT}",
-              "DB_USER": "${DBT_RDS_USERNAME}",
-              "DB_PASSWORD": "${DBT_DB_PASSWORD}",
-              "DB_NAME": "${DBT_RDS_DB_NAME}",
-              "DB_SCHEMA": "public",
-              "AIRFLOW__CORE__EXECUTOR": "LocalExecutor",
-              "AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION": "True",
-              "AIRFLOW__CORE__LOAD_EXAMPLES": "False",
-              "AIRFLOW__API__AUTH_BACKENDS": "airflow.api.auth.backend.basic_auth",
-              "AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK": "True",
-              "AIRFLOW__SUPPORT_EMAIL": "admin@example.com",
-              "DBT_ENV": "dev",
-              "DBT_LOGS_HOST_PATH": "/opt/airflow-dbt-template/dbt/logs"
-            }
+            # Create .env file for Docker Compose
+            cat > ../.env \<< EOF
+            # Airflow Configuration
+            AIRFLOW_UID=501
+            AIRFLOW_PROJ_DIR=./airflow
+            AIRFLOW__CORE__EXECUTOR=LocalExecutor
+            AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_RDS_USERNAME}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_RDS_ENDPOINT}:${AIRFLOW_RDS_PORT}/${AIRFLOW_RDS_DB_NAME}
+            AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://${AIRFLOW_RDS_USERNAME}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_RDS_ENDPOINT}:${AIRFLOW_RDS_PORT}/${AIRFLOW_RDS_DB_NAME}
+            AIRFLOW__CELERY__BROKER_URL=redis://:@redis:6379/0
+            AIRFLOW__CORE__FERNET_KEY=your-fernet-key-here
+            AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
+            AIRFLOW__CORE__LOAD_EXAMPLES=false
+            AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
+            AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK=true
+            AIRFLOW__SUPPORT_EMAIL=admin@example.com
+
+            # Airflow Redis
+            AIRFLOW_REDIS_PORT=6379
+
+            # Airflow Webserver
+            AIRFLOW_WEBSERVER_PORT_OUT=8080
+            AIRFLOW_WEBSERVER_PORT_IN=8080
+
+            # Airflow Scheduler
+            AIRFLOW_SCHEDULER_PORT=8974
+
+            # Airflow Init
+            _AIRFLOW_DB_MIGRATE=true
+            _AIRFLOW_WWW_USER_CREATE=true
+            _AIRFLOW_WWW_USER_USERNAME=airflow
+            _AIRFLOW_WWW_USER_PASSWORD=airflow
+            _PIP_ADDITIONAL_REQUIREMENTS=
+
+            # Flower
+            FLOWER_PORT_OUT=5555
+            FLOWER_PORT_IN=5555
+
+            # dbt Configuration
+            DBT_POSTGRES_USER=${DBT_RDS_USERNAME}
+            DBT_POSTGRES_PASSWORD=${DBT_DB_PASSWORD}
+            DBT_POSTGRES_DB=${DBT_RDS_DB_NAME}
+            DBT_DB_PORT_OUT=5435
+            DBT_DB_PORT_IN=5432
+
+            # dbt Container
+            DBT_ENV=prod
+            DBT_DB_TYPE=postgres
+            DBT_DB_PORT=${DBT_RDS_PORT}
+            DBT_DB_HOST=${DBT_RDS_ENDPOINT}
+            DBT_DB_USER=${DBT_RDS_USERNAME}
+            DBT_DB_PASSWORD=${DBT_DB_PASSWORD}
+            DBT_DB_NAME=${DBT_RDS_DB_NAME}
+            DBT_DB_SCHEMA=public
+            DBT_LOGS_HOST_PATH=/opt/airflow-dbt-template/dbt/logs
+
+            # Python scripts container
+            PYTHON_SCIPTS_ENVIRONMENT=prod
+
+            # Production RDS endpoints (for docker-compose.yaml)
+            airflow_rds_endpoint=${AIRFLOW_RDS_ENDPOINT}
+            airflow_rds_port=${AIRFLOW_RDS_PORT}
+            airflow_db_username=${AIRFLOW_RDS_USERNAME}
+            airflow_db_password=${AIRFLOW_DB_PASSWORD}
+            dbt_rds_endpoint=${DBT_RDS_ENDPOINT}
+            dbt_rds_port=${DBT_RDS_PORT}
+            dbt_db_username=${DBT_RDS_USERNAME}
+            dbt_db_password=${DBT_DB_PASSWORD}
             EOF
 
             # Store EC2 IP for next job
@@ -137,7 +184,7 @@ jobs:
             - terraform/.terraform
             - terraform/tfplan
             - terraform/terraform.tfvars.json
-            - airflow_env_vars.json
+            - .env
             - ec2_public_ip.txt
 
   deploy:
@@ -194,30 +241,6 @@ jobs:
       - run:
           name: Deploy to EC2
           command: |
-            # Create a temporary file with the environment variables JSON
-            echo "$AIRFLOW_ENV_VARS_JSON" > airflow_env_vars.json
-
-            # Create the load_env_vars.sh script locally
-            cat > load_env_vars.sh \<< 'EOSCRIPT'
-            #!/bin/bash
-
-            # Function to convert JSON to environment variables
-            json_to_env() {
-              local json_file=$1
-              while IFS="=" read -r key value; do
-                # Remove quotes and export the variable
-                key=$(echo $key | tr -d '"')
-                value=$(echo $value | tr -d '"')
-                export "$key=$value"
-              done < <(jq -r 'to_entries | .[] | "\(.key)=\(.value)"' "$json_file")
-            }
-
-            # Load environment variables from JSON
-            if [ -f "/opt/airflow-dbt-template/config/airflow_env_vars.json" ]; then
-              json_to_env "/opt/airflow-dbt-template/config/airflow_env_vars.json"
-            fi
-            EOSCRIPT
-
             # Verify SSH connection
             echo "Testing SSH connection to ${EC2_USERNAME}@${EC2_PUBLIC_IP}..."
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${EC2_USERNAME}@${EC2_PUBLIC_IP} 'echo "SSH connection successful"'
@@ -246,19 +269,18 @@ jobs:
                 sudo chmod +x /usr/local/bin/docker-compose
               fi
 
-              # Create directory for environment variables if it doesn't exist
-              sudo mkdir -p /opt/airflow-dbt-template/config
+              # Create directory for the project
+              sudo mkdir -p /opt/airflow-dbt-template
               sudo chown -R ${USER}:${USER} /opt/airflow-dbt-template
             EOF
 
-            # Copy the environment variables JSON file and script to EC2
-            scp -o StrictHostKeyChecking=no airflow_env_vars.json load_env_vars.sh ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/tmp/
-            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "sudo mv /tmp/airflow_env_vars.json /tmp/load_env_vars.sh /opt/airflow-dbt-template/config/ && sudo chown ${USER}:${USER} /opt/airflow-dbt-template/config/* && sudo chmod +x /opt/airflow-dbt-template/config/load_env_vars.sh"
+            # Copy .env file to EC2
+            echo "Copying .env file to EC2..."
+            scp -o StrictHostKeyChecking=no .env ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
 
             # Copy docker-compose.yaml to EC2
             echo "Copying docker-compose.yaml to EC2..."
-            scp -o StrictHostKeyChecking=no docker-compose.yaml ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/tmp/
-            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "sudo mv /tmp/docker-compose.yaml /opt/airflow-dbt-template/ && sudo chown ${USER}:${USER} /opt/airflow-dbt-template/docker-compose.yaml"
+            scp -o StrictHostKeyChecking=no docker-compose.yaml ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
 
             # Copy all necessary directories to EC2
             echo "Copying project directories to EC2..."
@@ -283,25 +305,17 @@ jobs:
             # Set proper permissions
             ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "sudo chown -R ${USER}:${USER} /opt/airflow-dbt-template"
 
-            # SSH into EC2 and restart services with new environment variables
+            # SSH into EC2 and start services
             ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
-              # Install jq if not already installed
-              if ! command -v jq &> /dev/null; then
-                sudo apt-get update
-                sudo apt-get install -y jq
-              fi
-
-              # Source the environment variables and restart services
               cd /opt/airflow-dbt-template/
               echo "Current directory contents:"
               ls -la
-              echo "Loading environment variables..."
-              source config/load_env_vars.sh
               echo "Starting Docker services..."
               sudo docker compose version
               sudo docker compose config
               sudo docker compose down || echo "No containers to stop"
-              sudo -E docker compose -f docker-compose.yaml up -d
+              sudo docker compose build --no-cache
+              sudo docker compose up -d
             EOF
 
 workflows:
