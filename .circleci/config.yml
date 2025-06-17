@@ -134,6 +134,7 @@ jobs:
             AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
             AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK=true
             AIRFLOW__SUPPORT_EMAIL=admin@example.com
+            AIRFLOW__WEBSERVER__WORKERS=2
             AIRFLOW_REDIS_PORT=6379
             AIRFLOW_WEBSERVER_PORT_OUT=8080
             AIRFLOW_WEBSERVER_PORT_IN=8080
@@ -168,6 +169,10 @@ jobs:
             dbt_rds_port=${DBT_RDS_PORT}
             dbt_db_username=${DBT_RDS_USERNAME}
             dbt_db_password=${DBT_DB_PASSWORD}
+            AIRFLOW__CORE__PARALLELISM=4
+            AIRFLOW__SCHEDULER__DAG_FILE_PROCESSOR_MANAGER__MAX_FILE_PROCESSES=2
+            AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG=4
+            AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG=2
             EOF
 
             # Store EC2 IP for next job
