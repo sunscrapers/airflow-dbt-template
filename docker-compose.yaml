@@ -112,7 +112,7 @@ services:
 
   airflow-worker:
     <<: *airflow-common
-    command: celery worker
+    command: worker
     env_file:
       - .env
     healthcheck:
