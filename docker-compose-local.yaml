@@ -272,7 +272,7 @@ services:
   # See: https://docs.docker.com/compose/profiles/
   flower:
     <<: *airflow-common
-    command: flower
+    command: celery flower
     profiles:
       - flower
     ports:
