@@ -2,6 +2,7 @@ PYTHON_DEV_CONTAINER_NAME := python-script-image
 AIRFLOW_DOCKER_COMPOSE_FILE := docker-compose.yaml
 AIRFLOW_DOCKER_COMPOSE_LOCAL_FILE := docker-compose-local.yaml
 AIRFLOW_POSTRGRES_VOLUME_NAME := airflow-dbt-template_postgres-db-volume
+
 POSTGRES_DBT_VOLUME_NAME := postgres-dbt-data
 
 # Production commands (using docker-compose.yaml)
