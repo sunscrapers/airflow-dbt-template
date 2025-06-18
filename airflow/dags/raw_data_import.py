@@ -9,7 +9,15 @@ with DAGTemplate.create_base_dag(
     schedule_interval="0 2 * * *",
     start_date=datetime(year=2024, month=12, day=3, hour=23),
     tags=["data_import"],
+    params={
+        "data_date": Param(
+            default="{{ ds }}",
+            type="string",
+            description="The date for which to import data. Defaults to the DAG's execution date.",
+        )
+    }
 ) as dag:
     t1 = OperatorTemplate.create_python_script_docker_operator(
-        task_id="data_import_example", command="""python3 data_import_example.py"""
+        task_id="data_import_example",
+        command="""python3 data_import_example.py"""
     )
