@@ -7,14 +7,14 @@ This directory contains the CircleCI pipeline configuration for automating the d
 The pipeline consists of the following jobs:
 
 ### 1. Lint, Build and Test (`lint-build-and-test`)
-- Uses Python 3.9 Docker image
+- Uses Python Docker image
 - Installs project dependencies
 - Runs Ruff linting checks
 - Executes project structure tests
 - Runs DAG import tests with coverage reporting
 
 ### 2. Terraform Plan (`terraform-plan`)
-- Sets up AWS CLI and Terraform v1.5.7
+- Sets up AWS CLI and Terraform
 - Configures AWS credentials
 - Creates terraform.tfvars from CircleCI environment variables
 - Initializes Terraform

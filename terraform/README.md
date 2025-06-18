@@ -34,17 +34,7 @@ The following AWS resources are provisioned:
 ## Configuration
 
 1. Copy `terraform.tfvars.example` to `terraform.tfvars`
-2. Update the variables in `terraform.tfvars` with your values:
-   ```hcl
-   region = "eu-central-1"
-   profile = "your-aws-profile"
-   key_name = "your-key-name"
-   public_key_ec2_airflow = "your-public-key"
-   airflow_db_username = "airflow"
-   airflow_db_password = "your-password"
-   dbt_db_username = "dbt"
-   dbt_db_password = "your-password"
-   ```
+2. Update the variables in `terraform.tfvars` with your values
 
 ## Usage
 
