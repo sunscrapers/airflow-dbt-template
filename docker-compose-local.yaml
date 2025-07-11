@@ -6,7 +6,7 @@ x-airflow-common:
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: $AIRFLOW__CORE__EXECUTOR
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${airflow_db_username}:${airflow_db_password}@${airflow_rds_endpoint}:${airflow_rds_port}/airflow
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: $AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
     AIRFLOW__CELERY__RESULT_BACKEND: $AIRFLOW__CELERY__RESULT_BACKEND
     AIRFLOW__CELERY__BROKER_URL: $AIRFLOW__CELERY__BROKER_URL
     AIRFLOW__CORE__FERNET_KEY: $AIRFLOW__CORE__FERNET_KEY
@@ -15,13 +15,13 @@ x-airflow-common:
     AIRFLOW__API__AUTH_BACKENDS: $AIRFLOW__API__AUTH_BACKENDS
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: $AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK
     AIRFLOW__SUPPORT_EMAIL: $AIRFLOW__SUPPORT_EMAIL
-    DB_TYPE: postgres
-    DB_PORT: ${dbt_rds_port}
-    DB_HOST: ${dbt_rds_endpoint}
-    DB_USER: ${dbt_db_username}
-    DB_PASSWORD: ${dbt_db_password}
-    DB_NAME: dbtpostgres
-    DB_SCHEMA: public
+    DB_TYPE: $DBT_DB_TYPE
+    DB_PORT: $DBT_DB_PORT_IN
+    DB_HOST: $DBT_DB_HOST
+    DB_USER: $DBT_DB_USER
+    DB_PASSWORD: $DBT_DB_PASSWORD
+    DB_NAME: $DBT_DB_NAME
+    DB_SCHEMA: $DBT_DB_SCHEMA
     DBT_LOGS_HOST_PATH: $DBT_LOGS_HOST_PATH
     DBT_ENV: $DBT_ENV
   volumes:
@@ -37,9 +37,51 @@ x-airflow-common:
     &airflow-common-depends-on
     redis:
       condition: service_healthy
+    postgres-airflow:
+      condition: service_healthy
 
 services:
-  # container for the Python scripts
+  # database for Airflow
+  postgres-airflow:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: $AIRFLOW_POSTGRES_USER
+      POSTGRES_PASSWORD: $AIRFLOW_POSTGRES_PASSWORD
+      POSTGRES_DB: $AIRFLOW_POSTGRES_DB
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+
+  # database for dbt
+  postgres-dbt:
+    image: postgres:13
+    ports:
+      - "$DBT_DB_PORT_OUT:$DBT_DB_PORT_IN"
+    networks:
+      default:
+        aliases:
+          - postgres-dbt
+    environment:
+      POSTGRES_USER: $DBT_POSTGRES_USER
+      POSTGRES_PASSWORD: $DBT_POSTGRES_PASSWORD
+      POSTGRES_DB: $DBT_POSTGRES_DB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dbtpostgres -d dbtpostgres"]
+      interval: 30s
+      timeout: 60s
+      retries: 5
+      start_period: 80s
+    volumes:
+      - postgres-dbt-data:/var/lib/postgresql/data
+      - ./dbt/postgresql.conf:/etc/dbt/postgresql.conf
+    command: ["postgres", "-c", "config_file=/etc/dbt/postgresql.conf"]
+
+    # container for the Python scripts
   python-script-runner:
     build:
       context: ./python_scripts/
@@ -47,6 +89,8 @@ services:
     image: python-runner-image
     networks:
       - default
+    depends_on:
+      - postgres-dbt
 
   # container for the dbt Python scripts
   dbt-container:
@@ -59,6 +103,8 @@ services:
       - dbt-target-volume:/opt/dbt/target
     networks:
       - default
+    depends_on:
+      - postgres-dbt
 
   redis:
     # Redis is limited to 7.2-bookworm due to licencing change
@@ -86,8 +132,6 @@ services:
       retries: 5
       start_period: 30s
     restart: always
-    env_file:
-      - .env
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
@@ -103,37 +147,33 @@ services:
       retries: 5
       start_period: 30s
     restart: always
-    env_file:
-      - .env
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
 
-  # airflow-worker:
-  #   <<: *airflow-common
-  #   command: worker
-  #   env_file:
-  #     - .env
-  #   healthcheck:
-  #     # yamllint disable rule:line-length
-  #     test:
-  #       - "CMD-SHELL"
-  #       - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 30s
-  #   environment:
-  #     <<: *airflow-common-env
-  #     # Required to handle warm shutdown of the celery workers properly
-  #     # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
-  #     DUMB_INIT_SETSID: "0"
-  #   restart: always
-  #   depends_on:
-  #     <<: *airflow-common-depends-on
-  #     airflow-init:
-  #       condition: service_completed_successfully
+  airflow-worker:
+    <<: *airflow-common
+    command: celery worker
+    healthcheck:
+      # yamllint disable rule:line-length
+      test:
+        - "CMD-SHELL"
+        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    environment:
+      <<: *airflow-common-env
+      # Required to handle warm shutdown of the celery workers properly
+      # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
+      DUMB_INIT_SETSID: "0"
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
 
   airflow-triggerer:
     <<: *airflow-common
@@ -250,10 +290,14 @@ services:
         condition: service_completed_successfully
 
 volumes:
+  postgres-dbt-data:
+    name: postgres-dbt-data
   dbt-logs-volume:
     name: dbt-logs-volume
   dbt-target-volume:
     name: dbt-target-volume
+  postgres-db-volume:
+    name: postgres-db-volume
 
 networks:
   default:

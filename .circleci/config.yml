@@ -1,0 +1,371 @@
+version: 2.1
+
+orbs:
+  aws-cli: circleci/aws-cli@3.1
+  terraform: circleci/terraform@3.2
+
+jobs:
+  lint-build-and-test:
+    docker:
+      - image: cimg/python:3.9
+    steps:
+      - checkout
+      - run:
+          name: Install deps
+          command: |
+            python -m venv venv
+            . venv/bin/activate
+            pip install --upgrade pip
+            pip install -r python_scripts/requirements.txt
+            pip install -r tests/test-requirements.txt
+      - run:
+          name: Run linting with Ruff
+          command: |
+            . venv/bin/activate
+            ruff check .
+      - run:
+          name: Run project structure tests
+          command: |
+            . venv/bin/activate
+            pytest tests/test_project_structure.py -v
+      - run:
+          name: Run DAG import tests
+          command: |
+            . venv/bin/activate
+            pytest --cov=dags tests/ -v
+
+  terraform-plan:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - aws-cli/setup
+      - terraform/install:
+          terraform_version: 1.5.7
+      - run:
+          name: Set up AWS credentials
+          command: |
+            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+              echo "Missing required AWS environment variables"
+              exit 1
+            fi
+            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+            aws configure set default.region us-east-1
+      - run:
+          name: Create tfvars file
+          command: |
+            cd terraform
+            echo "$TFVARS_JSON" > terraform.tfvars.json
+      - run:
+          name: Initialize Terraform
+          command: |
+            cd terraform
+            terraform init
+      - run:
+          name: Run Terraform Plan
+          command: |
+            cd terraform
+            terraform plan -out=tfplan -var-file=terraform.tfvars.json
+      - persist_to_workspace:
+          root: .
+          paths:
+            - terraform/
+            - terraform/.terraform
+            - terraform/tfplan
+            - terraform/terraform.tfvars.json
+
+  terraform-apply:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - aws-cli/setup
+      - terraform/install:
+          terraform_version: 1.5.7
+      - attach_workspace:
+          at: .
+      - run:
+          name: Apply Terraform Changes
+          command: |
+            cd terraform
+            terraform apply -auto-approve tfplan
+      - run:
+          name: Get Terraform Outputs and Create Environment Variables
+          command: |
+            cd terraform
+            # Get all required outputs
+            AIRFLOW_RDS_ENDPOINT=$(terraform output -raw airflow_rds_endpoint)
+            AIRFLOW_RDS_PORT=$(terraform output -raw airflow_rds_port)
+            AIRFLOW_RDS_DB_NAME=$(terraform output -raw airflow_rds_database_name)
+            AIRFLOW_RDS_USERNAME=$(terraform output -raw airflow_rds_username)
+            DBT_RDS_ENDPOINT=$(terraform output -raw dbt_rds_endpoint)
+            DBT_RDS_PORT=$(terraform output -raw dbt_rds_port)
+            DBT_RDS_DB_NAME=$(terraform output -raw dbt_rds_database_name)
+            DBT_RDS_USERNAME=$(terraform output -raw dbt_rds_username)
+            EC2_IP=$(terraform output -raw airflow_instance_public_ip)
+
+            # Debug: Print the values
+            echo "Airflow RDS Endpoint: $AIRFLOW_RDS_ENDPOINT"
+            echo "Airflow RDS Port: $AIRFLOW_RDS_PORT"
+            echo "Airflow RDS DB Name: $AIRFLOW_RDS_DB_NAME"
+            echo "Airflow RDS Username: $AIRFLOW_RDS_USERNAME"
+            echo "DBT RDS Endpoint: $DBT_RDS_ENDPOINT"
+            echo "DBT RDS Port: $DBT_RDS_PORT"
+            echo "DBT RDS DB Name: $DBT_RDS_DB_NAME"
+            echo "DBT RDS Username: $DBT_RDS_USERNAME"
+
+            # Extract hostname from endpoint (remove port if present)
+            AIRFLOW_RDS_HOST=$(echo $AIRFLOW_RDS_ENDPOINT | cut -d: -f1)
+            DBT_RDS_HOST=$(echo $DBT_RDS_ENDPOINT | cut -d: -f1)
+
+            # Create .env file with direct values
+            cat > ../.env \<< EOF
+            # Airflow Configuration
+            AIRFLOW_UID=501
+            AIRFLOW_PROJ_DIR=./airflow
+            AIRFLOW__CORE__EXECUTOR=LocalExecutor
+            AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_RDS_USERNAME}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_RDS_HOST}:${AIRFLOW_RDS_PORT}/${AIRFLOW_RDS_DB_NAME}?sslmode=require
+            AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://${AIRFLOW_RDS_USERNAME}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_RDS_HOST}:${AIRFLOW_RDS_PORT}/${AIRFLOW_RDS_DB_NAME}?sslmode=require
+            AIRFLOW__CELERY__BROKER_URL=redis://:@redis:6379/0
+            AIRFLOW__CORE__FERNET_KEY=your-fernet-key-here
+            AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
+            AIRFLOW__CORE__LOAD_EXAMPLES=false
+            AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
+            AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK=true
+            AIRFLOW__SUPPORT_EMAIL=admin@example.com
+            AIRFLOW__WEBSERVER__WORKERS=2
+            AIRFLOW_REDIS_PORT=6379
+            AIRFLOW_WEBSERVER_PORT_OUT=8080
+            AIRFLOW_WEBSERVER_PORT_IN=8080
+            AIRFLOW_SCHEDULER_PORT=8974
+            _AIRFLOW_DB_MIGRATE=true
+            _AIRFLOW_WWW_USER_CREATE=true
+            _AIRFLOW_WWW_USER_USERNAME=airflow
+            _AIRFLOW_WWW_USER_PASSWORD=airflow
+            _PIP_ADDITIONAL_REQUIREMENTS=
+            FLOWER_PORT_OUT=5555
+            FLOWER_PORT_IN=5555
+            DBT_POSTGRES_USER=${DBT_RDS_USERNAME}
+            DBT_POSTGRES_PASSWORD=${DBT_DB_PASSWORD}
+            DBT_POSTGRES_DB=${DBT_RDS_DB_NAME}
+            DBT_DB_PORT_OUT=5435
+            DBT_DB_PORT_IN=5432
+            DBT_ENV=prod
+            DBT_DB_TYPE=postgres
+            DBT_DB_PORT=${DBT_RDS_PORT}
+            DBT_DB_HOST=${DBT_RDS_HOST}
+            DBT_DB_USER=${DBT_RDS_USERNAME}
+            DBT_DB_PASSWORD=${DBT_DB_PASSWORD}
+            DBT_DB_NAME=${DBT_RDS_DB_NAME}
+            DBT_DB_SCHEMA=public
+            DBT_LOGS_HOST_PATH=/tmp/dbt_logs
+            PYTHON_SCIPTS_ENVIRONMENT=prod
+            airflow_rds_endpoint=${AIRFLOW_RDS_HOST}
+            airflow_rds_port=${AIRFLOW_RDS_PORT}
+            airflow_db_username=${AIRFLOW_RDS_USERNAME}
+            airflow_db_password=${AIRFLOW_DB_PASSWORD}
+            dbt_rds_endpoint=${DBT_RDS_HOST}
+            dbt_rds_port=${DBT_RDS_PORT}
+            dbt_db_username=${DBT_RDS_USERNAME}
+            dbt_db_password=${DBT_DB_PASSWORD}
+            AIRFLOW__CORE__PARALLELISM=4
+            AIRFLOW__SCHEDULER__DAG_FILE_PROCESSOR_MANAGER__MAX_FILE_PROCESSES=2
+            AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG=4
+            AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG=2
+            EOF
+
+            # Store EC2 IP for next job
+            echo "$EC2_IP" > ../ec2_public_ip.txt
+            echo "export EC2_PUBLIC_IP=$EC2_IP" >> $BASH_ENV
+      - persist_to_workspace:
+          root: .
+          paths:
+            - terraform/
+            - terraform/.terraform
+            - terraform/tfplan
+            - terraform/terraform.tfvars.json
+            - .env
+            - ec2_public_ip.txt
+
+  deploy:
+    docker:
+      - image: cimg/base:stable
+    environment:
+      EC2_PUBLIC_IP: "${EC2_PUBLIC_IP}"
+      EC2_USERNAME: "ubuntu"
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: List workspace contents
+          command: |
+            echo "Current directory: $(pwd)"
+            echo "Listing workspace contents:"
+            ls -la
+      - run:
+          name: Load EC2 Public IP
+          command: |
+            echo "Looking for ec2_public_ip.txt in $(pwd)"
+            if [ -f "ec2_public_ip.txt" ]; then
+              EC2_IP=$(cat ec2_public_ip.txt)
+              echo "Loaded EC2 IP from file: $EC2_IP"
+              echo "export EC2_PUBLIC_IP=$EC2_IP" >> $BASH_ENV
+            else
+              echo "ec2_public_ip.txt not found in workspace"
+              echo "Current directory contents:"
+              ls -la
+              exit 1
+            fi
+      - run:
+          name: Verify EC2 Public IP
+          command: |
+            echo "Current EC2_PUBLIC_IP value: '$EC2_PUBLIC_IP'"
+            if [ -z "$EC2_PUBLIC_IP" ]; then
+              echo "EC2_PUBLIC_IP is not set"
+              exit 1
+            fi
+            if [ "$EC2_PUBLIC_IP" = "\${EC2_PUBLIC_IP}" ]; then
+              echo "EC2_PUBLIC_IP was not properly interpolated"
+              exit 1
+            fi
+            echo "Using EC2 Public IP: $EC2_PUBLIC_IP"
+      - run:
+          name: Install rsync
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y rsync
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:XZxECDr5WBjd5eywDRnkjHe56yLY1848+WLb4Mvav18"
+      - run:
+          name: Deploy to EC2
+          command: |
+            # Verify SSH connection
+            echo "Testing SSH connection to ${EC2_USERNAME}@${EC2_PUBLIC_IP}..."
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${EC2_USERNAME}@${EC2_PUBLIC_IP} 'echo "SSH connection successful"'
+
+            # Deploy to EC2 and set up environment variables
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
+              # Install Docker if not already installed
+              if ! command -v docker &> /dev/null; then
+                echo "Installing Docker..."
+                sudo apt-get update
+                sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+                curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+                sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+                sudo apt-get update
+                sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+                sudo usermod -aG docker $USER
+                # Start Docker service
+                sudo systemctl start docker
+                sudo systemctl enable docker
+              fi
+
+              # Install Docker Compose if not already installed
+              if ! command -v docker-compose &> /dev/null; then
+                echo "Installing Docker Compose..."
+                sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                sudo chmod +x /usr/local/bin/docker-compose
+              fi
+
+              # Create directory for the project
+              sudo mkdir -p /opt/airflow-dbt-template
+              sudo chown -R ${USER}:${USER} /opt/airflow-dbt-template
+            EOF
+
+            # Copy .env file to EC2
+            echo "Copying .env file to EC2..."
+            scp -o StrictHostKeyChecking=no .env ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
+
+            # Copy docker-compose.yaml to EC2
+            echo "Copying docker-compose.yaml to EC2..."
+            scp -o StrictHostKeyChecking=no docker-compose.yaml ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
+
+            # Copy all necessary directories to EC2
+            echo "Copying project directories to EC2..."
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "mkdir -p /opt/airflow-dbt-template/{dbt,python_scripts,airflow}"
+
+            # Copy dbt directory
+            echo "Copying dbt directory..."
+            tar -czf - ./dbt | ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "cd /opt/airflow-dbt-template && tar -xzf -"
+
+            # Copy python_scripts directory
+            echo "Copying python_scripts directory..."
+            tar -czf - ./python_scripts | ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "cd /opt/airflow-dbt-template && tar -xzf -"
+
+            # Copy airflow directory
+            echo "Copying airflow directory..."
+            tar -czf - ./airflow | ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "cd /opt/airflow-dbt-template && tar -xzf -"
+
+            # Copy root Dockerfile
+            echo "Copying root Dockerfile..."
+            scp -o StrictHostKeyChecking=no Dockerfile ${EC2_USERNAME}@${EC2_PUBLIC_IP}:/opt/airflow-dbt-template/
+
+            # Set proper permissions
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} "sudo chown -R ${USER}:${USER} /opt/airflow-dbt-template"
+
+            # SSH into EC2 and start services with debugging
+            ssh -o StrictHostKeyChecking=no ${EC2_USERNAME}@${EC2_PUBLIC_IP} \<< 'EOF'
+              cd /opt/airflow-dbt-template/
+              echo "Current directory contents:"
+              ls -la
+              echo "Environment file contents:"
+              cat .env
+              echo "Testing database connectivity..."
+
+              # Test RDS connectivity
+              echo "Testing Airflow RDS connection..."
+              nc -zv ${airflow_rds_endpoint} ${airflow_rds_port} || echo "Airflow RDS connection failed"
+
+              echo "Testing dbt RDS connection..."
+              nc -zv ${dbt_rds_endpoint} ${dbt_rds_port} || echo "dbt RDS connection failed"
+
+              # Check specific environment variables
+              echo "Checking specific environment variables:"
+              grep "AIRFLOW__DATABASE__SQL_ALCHEMY_CONN" .env
+              grep "airflow_rds_port" .env
+              grep "dbt_rds_port" .env
+
+              echo "Starting Docker services..."
+              sudo docker compose version
+              sudo docker compose config
+              sudo docker compose down || echo "No containers to stop"
+              sudo docker compose build --no-cache
+
+              # Start only the init container first to debug
+              echo "Starting Airflow init container for debugging..."
+              sudo docker compose up airflow-init
+
+              # Check init logs
+              echo "Airflow init logs:"
+              sudo docker logs airflow-dbt-template-airflow-init-1
+
+              # If init succeeds, start all services
+              if [ $? -eq 0 ]; then
+                echo "Airflow init successful, starting all services..."
+                sudo docker compose up -d
+              else
+                echo "Airflow init failed, check logs above"
+                exit 1
+              fi
+            EOF
+
+workflows:
+  version: 2
+  ci-deploy:
+    jobs:
+      - lint-build-and-test
+      - terraform-plan:
+          requires:
+            - lint-build-and-test
+      - terraform-apply:
+          requires:
+            - terraform-plan
+      - deploy:
+          requires:
+            - terraform-apply
+          # filters:
+          #   branches:
+          #     only: main
